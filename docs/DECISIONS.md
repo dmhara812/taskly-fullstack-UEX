@@ -1,0 +1,297 @@
+# Decisões técnicas do Taskly
+
+Este documento registra decisões tomadas pelo desenvolvedor após análise do repositório, comparação de alternativas e avaliação do prazo do desafio.
+
+As alternativas podem ter sido organizadas com apoio de IA, mas a decisão aplicada, a implementação e a validação pertencem ao desenvolvedor.
+
+---
+
+## DEC-001 — Preservar a arquitetura em camadas
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+O KanbanCore já separa rotas, regras de negócio, acesso a dados, modelos SQLAlchemy e schemas Pydantic.
+
+### Alternativas consideradas
+
+1. Reestruturar o backend durante a adaptação para o Taskly.
+2. Preservar a arquitetura atual e evoluir somente os pontos necessários.
+
+### Decisão do desenvolvedor
+
+Preservar o fluxo `api → service → repository → model`, mantendo schemas Pydantic na fronteira da API.
+
+### Justificativa
+
+A base já é coerente, testável e adequada ao prazo. Uma reescrita aumentaria risco sem entregar valor proporcional ao escopo do desafio.
+
+### Consequências
+
+- Novas entidades seguirão o mesmo padrão.
+- Regras de ownership permanecerão na camada de serviço e nas consultas protegidas.
+- Mudanças estruturais exigirão justificativa técnica explícita.
+
+---
+
+## DEC-002 — Criar uma baseline Alembic reproduzível
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+O repositório possui configuração do Alembic, mas não possui revisions versionadas. Além disso, o `.gitignore` ignora arquivos Python da pasta de versions.
+
+### Alternativas consideradas
+
+1. Manter `Base.metadata.create_all()` como mecanismo principal.
+2. Criar uma baseline do KanbanCore e depois migrations incrementais.
+3. Criar uma migration inicial consolidada já com o modelo final do Taskly.
+
+### Decisão do desenvolvedor
+
+Tratar o banco local do case como recriável e estabelecer uma baseline Alembic reproduzível antes das alterações funcionais. A ordem exata das revisions será definida na Etapa 02 para manter o histórico compreensível e validável.
+
+### Justificativa
+
+O avaliador deve conseguir iniciar o projeto em banco vazio com `alembic upgrade head`. A baseline reduz a diferença entre o modelo ORM e o histórico real do banco.
+
+### Consequências
+
+- O `.gitignore` deverá permitir migrations.
+- A CI deverá validar upgrade em banco vazio.
+- `create_all()` poderá continuar em testes rápidos, mas não substituirá o smoke test de migrations.
+
+---
+
+## DEC-003 — Adotar tags relacionais por usuário
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+O Taskly exige tags editáveis e reutilizáveis. O backend atual não possui estrutura equivalente.
+
+### Alternativas consideradas
+
+1. Armazenar tags em JSONB ou array na tabela de tarefas.
+2. Criar `tags` e uma associação many-to-many com tarefas.
+
+### Decisão do desenvolvedor
+
+Utilizar modelagem relacional enxuta:
+
+- tags pertencem ao usuário;
+- tarefas e tags possuem associação many-to-many;
+- o nome será normalizado para evitar duplicidade por diferença de caixa ou espaços;
+- a API terá somente as operações necessárias ao fluxo do Taskly, evitando um CRUD administrativo excessivo.
+
+### Justificativa
+
+A solução melhora consistência, reutilização, filtros e autocomplete, sem extrapolar o escopo mínimo.
+
+### Consequências
+
+- Será necessário evitar N+1 nas consultas.
+- Ownership deverá impedir associação entre tarefa e tag de usuários diferentes.
+- A migration incluirá tabela de tags, associação e restrição de unicidade.
+
+---
+
+## DEC-004 — Isolar anexos atrás de uma interface de storage
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+Anexos exigem persistência de metadados e armazenamento de bytes. O ambiente definitivo de deploy ainda não foi escolhido.
+
+### Alternativas consideradas
+
+1. Acoplar o serviço diretamente ao filesystem local.
+2. Acoplar diretamente a um serviço externo compatível com S3.
+3. Definir uma interface e fornecer implementações intercambiáveis.
+
+### Decisão do desenvolvedor
+
+Criar uma abstração `StorageBackend`, usar implementação local em desenvolvimento e testes e selecionar a implementação de produção na etapa de deploy.
+
+Os metadados serão persistidos em uma entidade `Attachment`, incluindo nome original, chave ou URL, tipo, tamanho e `task_id`.
+
+### Justificativa
+
+A abstração mantém o domínio independente do provedor, reduz risco durante o desenvolvimento e permite adequação ao ambiente real de deploy.
+
+### Consequências
+
+- Upload e exclusão precisarão coordenar banco e storage.
+- Ownership será validado por `Attachment → Task → Project → owner_id`.
+- Nomes físicos serão não previsíveis.
+- Tipos iniciais serão imagens e PDF, com limite configurável.
+
+---
+
+## DEC-005 — Usar UTC no contrato de prazos
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+O campo atual `due_date` contém apenas data. O Taskly exige data e hora.
+
+### Alternativas consideradas
+
+1. Persistir datetime sem timezone.
+2. Persistir horário local do usuário.
+3. Persistir datetime timezone-aware e normalizar em UTC.
+
+### Decisão do desenvolvedor
+
+Substituir `due_date` por `due_at`, usando `TIMESTAMP WITH TIME ZONE` no PostgreSQL e datetime timezone-aware no contrato da API. A API normalizará valores para UTC; o frontend fará a conversão somente para apresentação e edição local.
+
+### Justificativa
+
+A decisão evita ambiguidades e deslocamentos silenciosos entre ambientes.
+
+### Consequências
+
+- Payloads sem offset deverão ser rejeitados ou tratados por regra explícita.
+- Testes deverão verificar normalização e serialização.
+- A migration deverá evitar conversões implícitas dependentes do timezone da sessão.
+
+---
+
+## DEC-006 — Manter prioridade como recurso adicional
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+Prioridade não é requisito obrigatório do Taskly, mas já está implementada no KanbanCore.
+
+### Decisão do desenvolvedor
+
+Manter `low`, `medium` e `high` no domínio e no frontend.
+
+### Justificativa
+
+O recurso já funciona, agrega valor ao produto e não desvia o cronograma quando apenas adaptado às novas telas.
+
+### Consequências
+
+- Os testes existentes serão adaptados, não removidos.
+- Prioridade não terá precedência sobre requisitos obrigatórios.
+
+---
+
+## DEC-007 — Carregar todas as páginas para compor o kanban
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+A listagem atual é paginada e retorna 20 itens por padrão. Um kanban parcial poderia ocultar tarefas sem informar o usuário.
+
+### Alternativas consideradas
+
+1. Mostrar apenas a primeira página.
+2. Criar imediatamente um endpoint específico para board.
+3. Consumir todas as páginas do projeto no frontend.
+
+### Decisão do desenvolvedor
+
+No escopo do case, o frontend carregará todas as páginas do projeto para compor o board. Um endpoint específico só será criado se medições demonstrarem necessidade.
+
+### Justificativa
+
+A solução preserva a API existente, evita duplicação prematura e garante visão completa do projeto.
+
+### Consequências
+
+- O hook do kanban deverá controlar paginação acumulada.
+- Estados de carregamento e falha parcial deverão ser tratados.
+
+---
+
+## DEC-008 — Tornar projeto arquivado somente leitura
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+O backend já impede criação de tarefas em projetos arquivados, mas ainda é necessário definir edição, exclusão e movimentação.
+
+### Decisão do desenvolvedor
+
+Projetos arquivados serão somente leitura no Taskly. Não será permitida criação, edição, exclusão ou movimentação de tarefas enquanto o projeto estiver arquivado.
+
+### Justificativa
+
+A regra é previsível, reduz inconsistências e evita comportamentos diferentes entre lista e kanban.
+
+### Consequências
+
+- O backend deverá aplicar a regra, não apenas o frontend.
+- A interface deverá comunicar o estado de somente leitura.
+- Testes deverão cobrir as operações bloqueadas.
+
+---
+
+## DEC-009 — Estratégia de sessão adequada ao prazo do case
+
+**Status:** aprovada com trade-off documentado  
+**Data:** 31/07/2026
+
+### Contexto
+
+O backend emite access e refresh tokens, mas não possui endpoint de renovação. Cookies HttpOnly oferecem proteção adicional, porém exigem configuração de CORS, credenciais e proteção contra CSRF.
+
+### Decisão do desenvolvedor
+
+Para o prazo do case, implementar renovação de sessão com access e refresh tokens armazenados no cliente, registrando a limitação de segurança e evitando apresentar essa estratégia como escolha definitiva para produção.
+
+A adoção de cookies HttpOnly permanecerá como evolução recomendada para um produto real.
+
+### Justificativa
+
+A abordagem reduz complexidade operacional no prazo de três dias e permite demonstrar sessão persistente de ponta a ponta.
+
+### Consequências
+
+- O frontend deverá minimizar exposição dos tokens e limpar a sessão em falhas definitivas de refresh.
+- O README e a documentação de segurança deverão registrar o trade-off.
+- O backend deverá validar o tipo do token no endpoint de refresh.
+
+---
+
+## DEC-010 — IA como apoio, desenvolvedor como responsável técnico
+
+**Status:** aprovada  
+**Data:** 31/07/2026
+
+### Contexto
+
+O desafio avalia o uso de IA, mas também exige demonstração de capacidade técnica, revisão crítica e rastreabilidade.
+
+### Decisão do desenvolvedor
+
+Registrar a IA como ferramenta de pesquisa, levantamento de alternativas, organização e revisão. Decisões arquiteturais, implementação, alterações manuais, execução de testes e aceitação dos resultados serão atribuídas ao desenvolvedor.
+
+### Justificativa
+
+O registro representa o uso real de uma ferramenta de apoio sem transferir autoria ou responsabilidade técnica.
+
+### Consequências
+
+- `AI_USAGE.md` distinguirá sugestão, decisão, alteração humana e validação real.
+- Nenhum resultado será declarado como executado sem evidência.
+- Divergências entre sugestão e implementação serão registradas.
