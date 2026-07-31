@@ -31,7 +31,11 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[ProjectStatus] = mapped_column(
-        Enum(ProjectStatus, name="project_status"),
+        Enum(
+            ProjectStatus,
+            name="project_status",
+            values_callable=lambda enum_type: [item.value for item in enum_type],
+        ),
         default=ProjectStatus.ACTIVE,
         nullable=False,
     )

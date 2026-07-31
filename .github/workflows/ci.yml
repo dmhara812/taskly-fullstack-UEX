@@ -64,10 +64,10 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run Ruff lint
-        run: ruff check app
+        run: ruff check .
 
       - name: Check Ruff formatting
-        run: ruff format app --check
+        run: ruff format . --check
 
       - name: Run tests
         run: pytest

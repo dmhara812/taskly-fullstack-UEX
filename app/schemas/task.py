@@ -1,9 +1,24 @@
-from datetime import date, datetime
+from datetime import UTC, datetime
+from typing import Annotated, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.models.task import TaskPriority, TaskStatus
+
+
+def normalize_due_at(value: datetime | None) -> datetime | None:
+    """Valida timezone e converte o prazo para o contrato UTC da API."""
+    if value is None:
+        return None
+
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("due_at must include a timezone offset")
+
+    return value.astimezone(UTC)
+
+
+UtcDateTime = Annotated[datetime, AfterValidator(normalize_due_at)]
 
 
 class TaskBase(BaseModel):
@@ -12,18 +27,23 @@ class TaskBase(BaseModel):
         max_length=180,
         examples=["Create authentication endpoints"],
     )
+    short_description: str = Field(
+        min_length=2,
+        max_length=280,
+        examples=["Implement the authentication flow for the application."],
+    )
     description: str | None = Field(
         default=None,
-        max_length=3000,
+        max_length=5000,
         examples=["Implement register, login and current user endpoints."],
     )
     priority: TaskPriority = Field(
         default=TaskPriority.MEDIUM,
         examples=[TaskPriority.HIGH],
     )
-    due_date: date | None = Field(
+    due_at: UtcDateTime | None = Field(
         default=None,
-        examples=["2026-06-15"],
+        examples=["2026-06-15T21:30:00Z"],
     )
 
 
@@ -40,9 +60,15 @@ class TaskUpdate(BaseModel):
         max_length=180,
         examples=["Update authentication endpoints"],
     )
+    short_description: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=280,
+        examples=["Add refresh token support to the authentication flow."],
+    )
     description: str | None = Field(
         default=None,
-        max_length=3000,
+        max_length=5000,
         examples=["Add refresh token support."],
     )
     status: TaskStatus | None = Field(
@@ -53,10 +79,21 @@ class TaskUpdate(BaseModel):
         default=None,
         examples=[TaskPriority.HIGH],
     )
-    due_date: date | None = Field(
+    due_at: UtcDateTime | None = Field(
         default=None,
-        examples=["2026-06-30"],
+        examples=["2026-06-30T18:00:00Z"],
     )
+
+    @model_validator(mode="after")
+    def reject_null_required_fields(self) -> Self:
+        """Distingue campo ausente de `null` em atualizações parciais."""
+        required_fields = {"title", "short_description"}
+
+        for field_name in required_fields & self.model_fields_set:
+            if getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} cannot be null")
+
+        return self
 
 
 class TaskFilters(BaseModel):
@@ -72,9 +109,9 @@ class TaskFilters(BaseModel):
         default=None,
         examples=[TaskPriority.HIGH],
     )
-    due_before: date | None = Field(
+    due_before: UtcDateTime | None = Field(
         default=None,
-        examples=["2026-06-30"],
+        examples=["2026-06-30T23:59:59Z"],
     )
     search: str | None = Field(
         default=None,

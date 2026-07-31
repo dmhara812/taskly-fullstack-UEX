@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 from math import ceil
 from uuid import UUID
 
@@ -21,13 +21,7 @@ class TaskService:
         self.project_repository = ProjectRepository(db)
 
     def create_task(self, owner_id: UUID, task_data: TaskCreate) -> Task:
-        """Cria uma tarefa em um projeto do usuário.
-
-        Regras aplicadas:
-        - o projeto precisa existir;
-        - o projeto precisa pertencer ao usuário;
-        - projetos arquivados não podem receber novas tarefas.
-        """
+        """Cria uma tarefa somente em projeto ativo do próprio usuário."""
         project = self.project_repository.get_by_id_and_owner(
             project_id=task_data.project_id,
             owner_id=owner_id,
@@ -42,10 +36,7 @@ class TaskService:
         return self.repository.create(task_data)
 
     def get_task_for_owner(self, task_id: UUID, owner_id: UUID) -> Task:
-        """Busca uma tarefa garantindo que pertence ao usuário.
-
-        A validação acontece indiretamente pelo projeto dono da tarefa.
-        """
+        """Busca uma tarefa sem revelar recursos pertencentes a outra conta."""
         task = self.repository.get_by_id_and_owner(
             task_id=task_id,
             owner_id=owner_id,
@@ -64,10 +55,10 @@ class TaskService:
         project_id: UUID | None = None,
         status: TaskStatus | None = None,
         priority: TaskPriority | None = None,
-        due_before: date | None = None,
+        due_before: datetime | None = None,
         search: str | None = None,
     ) -> PaginatedResponse[TaskResponse]:
-        """Lista tarefas do usuário com filtros e paginação."""
+        """Lista tarefas do usuário com paginação e filtros."""
         items = self.repository.list_by_owner(
             owner_id=owner_id,
             page=page,
@@ -103,24 +94,38 @@ class TaskService:
         owner_id: UUID,
         task_data: TaskUpdate,
     ) -> Task:
-        """Atualiza uma tarefa pertencente ao usuário."""
+        """Atualiza tarefa própria apenas enquanto o projeto estiver ativo."""
         task = self.get_task_for_owner(task_id=task_id, owner_id=owner_id)
+        self._ensure_project_is_active(task=task, owner_id=owner_id)
 
         return self.repository.update(task, task_data)
 
     def mark_task_as_done(self, task_id: UUID, owner_id: UUID) -> Task:
-        """Marca uma tarefa como concluída.
-
-        Esse método expressa uma ação de negócio específica e evita que
-        a rota precise conhecer detalhes do enum `TaskStatus`.
-        """
-        task = self.get_task_for_owner(task_id=task_id, owner_id=owner_id)
-        task_data = TaskUpdate(status=TaskStatus.DONE)
-
-        return self.repository.update(task, task_data)
+        """Marca tarefa como concluída respeitando a regra de arquivamento."""
+        return self.update_task(
+            task_id=task_id,
+            owner_id=owner_id,
+            task_data=TaskUpdate(status=TaskStatus.DONE),
+        )
 
     def delete_task(self, task_id: UUID, owner_id: UUID) -> None:
-        """Remove uma tarefa pertencente ao usuário."""
+        """Remove tarefa própria apenas enquanto o projeto estiver ativo."""
         task = self.get_task_for_owner(task_id=task_id, owner_id=owner_id)
+        self._ensure_project_is_active(task=task, owner_id=owner_id)
 
         self.repository.delete(task)
+
+    def _ensure_project_is_active(self, task: Task, owner_id: UUID) -> None:
+        """Centraliza a política de projeto arquivado como somente leitura."""
+        project = self.project_repository.get_by_id_and_owner(
+            project_id=task.project_id,
+            owner_id=owner_id,
+        )
+
+        if project is None:
+            # Esse estado indica inconsistência entre a tarefa e o projeto.
+            # Mantemos 404 para não expor detalhes de ownership.
+            raise NotFoundError("Project not found")
+
+        if project.status == ProjectStatus.ARCHIVED:
+            raise BadRequestError("Cannot modify tasks in archived projects")

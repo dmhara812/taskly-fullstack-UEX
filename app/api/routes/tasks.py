@@ -1,4 +1,3 @@
-from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -10,7 +9,7 @@ from app.core.dependencies import get_current_user
 from app.models.task import TaskPriority, TaskStatus
 from app.models.user import User
 from app.schemas.common import PaginatedResponse
-from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate, UtcDateTime
 from app.services.task_service import TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -26,11 +25,7 @@ def create_task(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TaskResponse:
-    """Cria uma tarefa em um projeto do usuário autenticado.
-
-    O body recebe `project_id`, mas o service valida se esse projeto
-    realmente pertence ao usuário atual.
-    """
+    """Cria uma tarefa em um projeto ativo do usuário autenticado."""
     service = TaskService(db)
     task = service.create_task(
         owner_id=current_user.id,
@@ -62,23 +57,15 @@ def list_tasks(
         Query(examples=[TaskPriority.HIGH]),
     ] = None,
     due_before: Annotated[
-        date | None,
-        Query(examples=["2026-06-30"]),
+        UtcDateTime | None,
+        Query(examples=["2026-06-30T23:59:59Z"]),
     ] = None,
     search: Annotated[
         str | None,
         Query(min_length=1, max_length=180, examples=["authentication"]),
     ] = None,
 ) -> PaginatedResponse[TaskResponse]:
-    """Lista tarefas do usuário autenticado com paginação e filtros.
-
-    Filtros disponíveis:
-    - `project_id`;
-    - `status`;
-    - `priority`;
-    - `due_before`;
-    - `search`.
-    """
+    """Lista tarefas com filtros, normalizando o limite temporal para UTC."""
     service = TaskService(db)
 
     return service.list_tasks(
@@ -122,11 +109,7 @@ def update_task(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TaskResponse:
-    """Atualiza parcialmente uma tarefa.
-
-    Todos os campos de `TaskUpdate` são opcionais.
-    Apenas os campos enviados serão alterados.
-    """
+    """Atualiza parcialmente uma tarefa de projeto ativo."""
     service = TaskService(db)
     task = service.update_task(
         task_id=task_id,
@@ -146,10 +129,7 @@ def mark_task_as_done(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TaskResponse:
-    """Marca uma tarefa como concluída.
-
-    Esta rota deixa a intenção da ação clara para quem consome a API.
-    """
+    """Marca uma tarefa como concluída quando o projeto está ativo."""
     service = TaskService(db)
     task = service.mark_task_as_done(
         task_id=task_id,
@@ -168,7 +148,7 @@ def delete_task(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
-    """Remove uma tarefa do usuário autenticado."""
+    """Remove uma tarefa de projeto ativo do usuário autenticado."""
     service = TaskService(db)
     service.delete_task(
         task_id=task_id,

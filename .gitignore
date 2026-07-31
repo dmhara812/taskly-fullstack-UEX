@@ -33,5 +33,5 @@ Thumbs.db
 *.log
 
 # Alembic
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+# As revisions são parte do código-fonte e precisam ser versionadas.
+alembic/versions/__pycache__/

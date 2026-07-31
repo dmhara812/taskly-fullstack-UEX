@@ -2,16 +2,7 @@ from fastapi.testclient import TestClient
 
 
 def test_full_user_project_task_flow(client: TestClient) -> None:
-    """Cobre o fluxo principal exigido nos critérios de pronto.
-
-    Fluxo:
-    1. criar usuário;
-    2. fazer login;
-    3. acessar rota protegida;
-    4. criar projeto;
-    5. criar tarefa;
-    6. listar tarefas.
-    """
+    """Cobre o fluxo principal com o contrato Taskly da tarefa."""
     user_payload = {
         "name": "Ana Silva",
         "email": "ana.flow@example.com",
@@ -19,7 +10,6 @@ def test_full_user_project_task_flow(client: TestClient) -> None:
     }
 
     register_response = client.post("/api/v1/auth/register", json=user_payload)
-
     assert register_response.status_code == 201
 
     login_response = client.post(
@@ -29,14 +19,12 @@ def test_full_user_project_task_flow(client: TestClient) -> None:
             "password": user_payload["password"],
         },
     )
-
     assert login_response.status_code == 200
 
     access_token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
 
     me_response = client.get("/api/v1/auth/me", headers=headers)
-
     assert me_response.status_code == 200
     assert me_response.json()["user"]["email"] == user_payload["email"]
 
@@ -48,23 +36,21 @@ def test_full_user_project_task_flow(client: TestClient) -> None:
         },
         headers=headers,
     )
-
     assert project_response.status_code == 201
 
     project_id = project_response.json()["id"]
-
     task_response = client.post(
         "/api/v1/tasks",
         json={
             "project_id": project_id,
             "title": "Create full flow test",
-            "description": "Ensure main backend flow works.",
+            "short_description": "Validate the complete backend flow.",
+            "description": "Ensure the main Taskly backend flow works.",
             "priority": "high",
-            "due_date": "2026-06-15",
+            "due_at": "2026-06-15T21:30:00Z",
         },
         headers=headers,
     )
-
     assert task_response.status_code == 201
     assert task_response.json()["project_id"] == project_id
 
@@ -72,10 +58,8 @@ def test_full_user_project_task_flow(client: TestClient) -> None:
         f"/api/v1/tasks?project_id={project_id}",
         headers=headers,
     )
-
     assert tasks_response.status_code == 200
 
     tasks_data = tasks_response.json()
-
     assert tasks_data["total"] == 1
     assert tasks_data["items"][0]["title"] == "Create full flow test"

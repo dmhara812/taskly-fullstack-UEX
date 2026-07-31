@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -13,25 +13,21 @@ class TaskRepository:
     """Camada de acesso a dados para tarefas.
 
     Tarefas pertencem a projetos. Como projetos pertencem a usuários,
-    algumas consultas fazem join com `Project` para garantir que a tarefa
-    acessada pertence a um projeto do usuário autenticado.
+    consultas protegidas fazem join com `Project` para validar ownership.
     """
 
     def __init__(self, db: Session) -> None:
         self.db = db
 
     def create(self, task_data: TaskCreate) -> Task:
-        """Cria uma tarefa.
-
-        A validação de que `project_id` existe e pertence ao usuário será feita
-        na camada de service. Aqui assumimos que os dados já foram autorizados.
-        """
+        """Persiste uma tarefa após autorização realizada pelo service."""
         task = Task(
             project_id=task_data.project_id,
             title=task_data.title,
+            short_description=task_data.short_description,
             description=task_data.description,
             priority=task_data.priority,
-            due_date=task_data.due_date,
+            due_at=task_data.due_at,
         )
 
         self.db.add(task)
@@ -41,17 +37,13 @@ class TaskRepository:
         return task
 
     def get_by_id(self, task_id: UUID) -> Task | None:
-        """Busca uma tarefa apenas pelo ID."""
+        """Busca uma tarefa apenas pelo ID para usos internos controlados."""
         statement = select(Task).where(Task.id == task_id)
 
         return self.db.scalar(statement)
 
     def get_by_id_and_owner(self, task_id: UUID, owner_id: UUID) -> Task | None:
-        """Busca uma tarefa garantindo que ela pertence ao usuário informado.
-
-        Como `Task` não possui `owner_id` diretamente, fazemos join com
-        `Project` e filtramos pelo dono do projeto.
-        """
+        """Busca a tarefa somente quando seu projeto pertence ao usuário."""
         statement = (
             select(Task)
             .join(Project, Task.project_id == Project.id)
@@ -71,14 +63,10 @@ class TaskRepository:
         project_id: UUID | None = None,
         status: TaskStatus | None = None,
         priority: TaskPriority | None = None,
-        due_before: date | None = None,
+        due_before: datetime | None = None,
         search: str | None = None,
     ) -> list[Task]:
-        """Lista tarefas pertencentes ao usuário com filtros e paginação.
-
-        A consulta usa join com `Project` para garantir que só sejam retornadas
-        tarefas de projetos cujo `owner_id` seja o usuário informado.
-        """
+        """Lista tarefas autorizadas com filtros e paginação."""
         offset = (page - 1) * size
 
         statement = (
@@ -97,7 +85,7 @@ class TaskRepository:
             statement = statement.where(Task.priority == priority)
 
         if due_before is not None:
-            statement = statement.where(Task.due_date <= due_before)
+            statement = statement.where(Task.due_at <= due_before)
 
         if search:
             statement = statement.where(Task.title.ilike(f"%{search}%"))
@@ -114,10 +102,10 @@ class TaskRepository:
         project_id: UUID | None = None,
         status: TaskStatus | None = None,
         priority: TaskPriority | None = None,
-        due_before: date | None = None,
+        due_before: datetime | None = None,
         search: str | None = None,
     ) -> int:
-        """Conta tarefas aplicando os mesmos filtros da listagem."""
+        """Conta tarefas usando exatamente os mesmos filtros da listagem."""
         statement = (
             select(func.count())
             .select_from(Task)
@@ -135,7 +123,7 @@ class TaskRepository:
             statement = statement.where(Task.priority == priority)
 
         if due_before is not None:
-            statement = statement.where(Task.due_date <= due_before)
+            statement = statement.where(Task.due_at <= due_before)
 
         if search:
             statement = statement.where(Task.title.ilike(f"%{search}%"))
@@ -143,7 +131,7 @@ class TaskRepository:
         return self.db.scalar(statement) or 0
 
     def update(self, task: Task, task_data: TaskUpdate) -> Task:
-        """Atualiza uma tarefa existente."""
+        """Atualiza somente campos enviados na operação parcial."""
         update_data = task_data.model_dump(exclude_unset=True)
 
         for field, value in update_data.items():
@@ -156,6 +144,6 @@ class TaskRepository:
         return task
 
     def delete(self, task: Task) -> None:
-        """Remove uma tarefa."""
+        """Remove uma tarefa já autorizada pelo service."""
         self.db.delete(task)
         self.db.commit()

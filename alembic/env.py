@@ -12,16 +12,17 @@ settings = get_settings()
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# A URL pode ser injetada programaticamente pelos testes. Em execução normal,
+# usamos a configuração da aplicação para manter Alembic e FastAPI no mesmo banco.
+database_url = config.attributes.get("database_url", settings.database_url)
+config.set_main_option("sqlalchemy.url", database_url)
 
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
-
     context.configure(
-        url=url,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -34,7 +35,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.database_url
+    configuration["sqlalchemy.url"] = database_url
 
     connectable = engine_from_config(
         configuration,

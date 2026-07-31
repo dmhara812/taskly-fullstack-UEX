@@ -1,20 +1,33 @@
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
 
-def test_create_task(
+def task_payload(project_id: str, title: str = "Create CRUD routes") -> dict[str, str]:
+    """Monta o contrato mínimo de tarefa sem ocultar campos obrigatórios."""
+    return {
+        "project_id": project_id,
+        "title": title,
+        "short_description": "Implement the main task flow.",
+        "description": "Implement protected routes for projects and tasks.",
+        "priority": "high",
+        "due_at": "2026-06-15T18:30:00-03:00",
+    }
+
+
+def parse_datetime(value: str) -> datetime:
+    """Aceita a representação UTC com `Z` devolvida pelo JSON."""
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def test_create_task_normalizes_due_at_to_utc(
     client: TestClient,
     auth_headers: dict[str, str],
     created_project: dict[str, str],
 ) -> None:
     response = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Create CRUD routes",
-            "description": "Implement protected routes for projects and tasks.",
-            "priority": "high",
-            "due_date": "2026-06-15",
-        },
+        json=task_payload(created_project["id"]),
         headers=auth_headers,
     )
 
@@ -24,8 +37,52 @@ def test_create_task(
 
     assert data["project_id"] == created_project["id"]
     assert data["title"] == "Create CRUD routes"
+    assert data["short_description"] == "Implement the main task flow."
     assert data["status"] == "todo"
     assert data["priority"] == "high"
+    assert parse_datetime(data["due_at"]) == datetime(
+        2026,
+        6,
+        15,
+        21,
+        30,
+        tzinfo=UTC,
+    )
+
+
+def test_create_task_rejects_due_at_without_timezone(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    created_project: dict[str, str],
+) -> None:
+    payload = task_payload(created_project["id"])
+    payload["due_at"] = "2026-06-15T18:30:00"
+
+    response = client.post(
+        "/api/v1/tasks",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    assert "due_at must include a timezone offset" in response.text
+
+
+def test_create_task_requires_short_description(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    created_project: dict[str, str],
+) -> None:
+    payload = task_payload(created_project["id"])
+    payload.pop("short_description")
+
+    response = client.post(
+        "/api/v1/tasks",
+        json=payload,
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
 
 
 def test_list_tasks(
@@ -35,13 +92,7 @@ def test_list_tasks(
 ) -> None:
     client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Create tests",
-            "description": "Add pytest coverage.",
-            "priority": "medium",
-            "due_date": "2026-06-20",
-        },
+        json=task_payload(created_project["id"], "Create tests"),
         headers=auth_headers,
     )
 
@@ -62,31 +113,24 @@ def test_list_tasks_with_filters(
     auth_headers: dict[str, str],
     created_project: dict[str, str],
 ) -> None:
-    client.post(
-        "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Write authentication tests",
-            "description": "Cover register and login.",
-            "priority": "high",
-            "due_date": "2026-06-15",
-        },
-        headers=auth_headers,
+    high_priority = task_payload(
+        created_project["id"],
+        "Write authentication tests",
     )
-    client.post(
-        "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Update README",
-            "description": "Document how to run tests.",
-            "priority": "low",
-            "due_date": "2026-07-01",
-        },
-        headers=auth_headers,
-    )
+    low_priority = task_payload(created_project["id"], "Update README")
+    low_priority["priority"] = "low"
+    low_priority["due_at"] = "2026-07-01T10:00:00Z"
+
+    client.post("/api/v1/tasks", json=high_priority, headers=auth_headers)
+    client.post("/api/v1/tasks", json=low_priority, headers=auth_headers)
 
     response = client.get(
-        "/api/v1/tasks?priority=high&search=authentication",
+        "/api/v1/tasks",
+        params={
+            "priority": "high",
+            "search": "authentication",
+            "due_before": "2026-06-30T23:59:59Z",
+        },
         headers=auth_headers,
     )
 
@@ -105,48 +149,62 @@ def test_get_task_by_id(
 ) -> None:
     create_response = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Create task detail endpoint",
-            "priority": "medium",
-        },
+        json=task_payload(created_project["id"], "Create task detail endpoint"),
         headers=auth_headers,
     )
 
     task = create_response.json()
-
     response = client.get(f"/api/v1/tasks/{task['id']}", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["id"] == task["id"]
 
 
-def test_update_task(
+def test_update_task_and_cancel_it(
     client: TestClient,
     auth_headers: dict[str, str],
     created_project: dict[str, str],
 ) -> None:
     create_response = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Old task title",
-            "priority": "medium",
-        },
+        json=task_payload(created_project["id"], "Old task title"),
         headers=auth_headers,
     )
-
     task = create_response.json()
 
     update_response = client.patch(
         f"/api/v1/tasks/{task['id']}",
-        json={"title": "New task title", "status": "in_progress"},
+        json={
+            "title": "New task title",
+            "short_description": "Task cancelled after scope review.",
+            "status": "cancelled",
+        },
         headers=auth_headers,
     )
 
     assert update_response.status_code == 200
     assert update_response.json()["title"] == "New task title"
-    assert update_response.json()["status"] == "in_progress"
+    assert update_response.json()["status"] == "cancelled"
+
+
+def test_update_task_rejects_null_short_description(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    created_project: dict[str, str],
+) -> None:
+    create_response = client.post(
+        "/api/v1/tasks",
+        json=task_payload(created_project["id"]),
+        headers=auth_headers,
+    )
+
+    response = client.patch(
+        f"/api/v1/tasks/{create_response.json()['id']}",
+        json={"short_description": None},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
 
 
 def test_mark_task_as_done(
@@ -156,14 +214,9 @@ def test_mark_task_as_done(
 ) -> None:
     create_response = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Finish task",
-            "priority": "medium",
-        },
+        json=task_payload(created_project["id"], "Finish task"),
         headers=auth_headers,
     )
-
     task = create_response.json()
 
     done_response = client.patch(
@@ -182,14 +235,9 @@ def test_delete_task(
 ) -> None:
     create_response = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Delete me",
-            "priority": "medium",
-        },
+        json=task_payload(created_project["id"], "Delete me"),
         headers=auth_headers,
     )
-
     task = create_response.json()
 
     delete_response = client.delete(
@@ -202,30 +250,45 @@ def test_delete_task(
     assert get_response.status_code == 404
 
 
-def test_cannot_create_task_in_archived_project(
+def test_archived_project_is_read_only_for_tasks(
     client: TestClient,
     auth_headers: dict[str, str],
     created_project: dict[str, str],
 ) -> None:
+    create_response = client.post(
+        "/api/v1/tasks",
+        json=task_payload(created_project["id"], "Existing task"),
+        headers=auth_headers,
+    )
+    task_id = create_response.json()["id"]
+
     archive_response = client.patch(
         f"/api/v1/projects/{created_project['id']}/archive",
         headers=auth_headers,
     )
-
     assert archive_response.status_code == 200
 
-    task_response = client.post(
+    create_after_archive = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Should fail",
-            "priority": "high",
-        },
+        json=task_payload(created_project["id"], "Should fail"),
+        headers=auth_headers,
+    )
+    update_after_archive = client.patch(
+        f"/api/v1/tasks/{task_id}",
+        json={"status": "in_progress"},
+        headers=auth_headers,
+    )
+    delete_after_archive = client.delete(
+        f"/api/v1/tasks/{task_id}",
         headers=auth_headers,
     )
 
-    assert task_response.status_code == 400
-    assert task_response.json()["detail"] == "Cannot create tasks in archived projects"
+    assert create_after_archive.status_code == 400
+    assert update_after_archive.status_code == 400
+    assert delete_after_archive.status_code == 400
+    assert update_after_archive.json()["detail"] == (
+        "Cannot modify tasks in archived projects"
+    )
 
 
 def test_create_task_without_token_returns_401(
@@ -234,11 +297,7 @@ def test_create_task_without_token_returns_401(
 ) -> None:
     response = client.post(
         "/api/v1/tasks",
-        json={
-            "project_id": created_project["id"],
-            "title": "Unauthorized task",
-            "priority": "high",
-        },
+        json=task_payload(created_project["id"], "Unauthorized task"),
     )
 
     assert response.status_code == 401

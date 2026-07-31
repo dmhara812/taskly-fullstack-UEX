@@ -1,19 +1,28 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app import models  # noqa: F401
 from app.core.config import get_settings
-from app.core.database import Base, get_db
+from app.core.database import get_db
 from app.main import app
 
 settings = get_settings()
 
 if settings.test_database_url is None:
     raise RuntimeError("TEST_DATABASE_URL must be configured to run tests")
+
+if (
+    settings.test_database_url == settings.database_url
+    and settings.app_env.lower() != "test"
+):
+    raise RuntimeError(
+        "TEST_DATABASE_URL must differ from DATABASE_URL outside the test environment"
+    )
 
 
 test_engine = create_engine(
@@ -28,31 +37,40 @@ TestingSessionLocal = sessionmaker(
 )
 
 
+def reset_test_schema() -> None:
+    """Recria o schema público do banco exclusivo de testes.
+
+    O reset é PostgreSQL-specific de propósito: a stack obrigatória usa
+    PostgreSQL e o banco apontado por TEST_DATABASE_URL deve ser descartável.
+    """
+    with test_engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
+
+
+def run_test_migrations() -> None:
+    """Aplica a mesma cadeia Alembic utilizada no deploy da aplicação."""
+    alembic_config = Config("alembic.ini")
+    alembic_config.attributes["database_url"] = settings.test_database_url
+    command.upgrade(alembic_config, "head")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_database() -> Generator[None, None, None]:
-    """Cria as tabelas no início da sessão de testes e remove ao final.
-
-    Isso mantém o banco de teste isolado do banco de desenvolvimento.
-    Nunca use `DATABASE_URL` aqui, apenas `TEST_DATABASE_URL`.
-    """
-    Base.metadata.drop_all(bind=test_engine)
-    Base.metadata.create_all(bind=test_engine)
+    """Valida as migrations em banco vazio antes de executar a suíte."""
+    reset_test_schema()
+    run_test_migrations()
 
     yield
 
-    Base.metadata.drop_all(bind=test_engine)
+    reset_test_schema()
 
 
 @pytest.fixture()
 def db_session() -> Generator[Session, None, None]:
-    """Fornece uma sessão limpa para cada teste.
-
-    Cada teste abre uma transação e faz rollback no final. Isso evita que
-    dados de um teste interfiram nos demais.
-    """
+    """Isola cada teste em uma transação revertida ao final."""
     connection = test_engine.connect()
     transaction = connection.begin()
-
     session = TestingSessionLocal(bind=connection)
 
     try:
@@ -65,10 +83,7 @@ def db_session() -> Generator[Session, None, None]:
 
 @pytest.fixture()
 def client(db_session: Session) -> Generator[TestClient, None, None]:
-    """Cria um TestClient usando override da dependência `get_db`.
-
-    Assim, as rotas usam a sessão de teste em vez da sessão real da aplicação.
-    """
+    """Substitui a sessão da aplicação pela sessão transacional do teste."""
 
     def override_get_db() -> Generator[Session, None, None]:
         yield db_session
@@ -89,6 +104,34 @@ def user_payload() -> dict[str, str]:
         "email": "ana.silva@example.com",
         "password": "StrongPassword123",
     }
+
+
+@pytest.fixture()
+def authenticated_user_factory(
+    client: TestClient,
+) -> Callable[[str, str], dict[str, str]]:
+    """Cria usuários independentes para cenários reais de ownership."""
+
+    def create_authenticated_user(email: str, name: str) -> dict[str, str]:
+        password = "StrongPassword123"
+        register_response = client.post(
+            "/api/v1/auth/register",
+            json={"name": name, "email": email, "password": password},
+        )
+        assert register_response.status_code == 201
+
+        login_response = client.post(
+            "/api/v1/auth/login",
+            data={"username": email, "password": password},
+        )
+        assert login_response.status_code == 200
+
+        return {
+            "access_token": login_response.json()["access_token"],
+            "user_id": register_response.json()["id"],
+        }
+
+    return create_authenticated_user
 
 
 @pytest.fixture()
