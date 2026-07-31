@@ -1,4 +1,4 @@
-name: KanbanCore API CI
+name: Taskly Backend CI
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - main
 
 jobs:
-  lint-and-test:
-    name: Lint and test
+  backend-lint-and-test:
+    name: Backend lint and test
     runs-on: ubuntu-latest
 
     services:
@@ -29,7 +29,7 @@ jobs:
           --health-retries=10
 
     env:
-      APP_NAME: "KanbanCore API"
+      APP_NAME: "Taskly API"
       APP_ENV: "test"
       APP_DEBUG: "false"
       APP_VERSION: "0.1.0"
@@ -39,7 +39,11 @@ jobs:
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      CORS_ORIGINS: "http://localhost:3000,http://localhost:8000"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:8000"
+
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
       - name: Checkout repository
@@ -54,7 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/pyproject.toml') }}
           restore-keys: |
             pip-${{ runner.os }}-
 

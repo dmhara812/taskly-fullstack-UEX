@@ -11,6 +11,11 @@ dist/
 build/
 *.egg-info/
 
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Virtual environments
 .venv/
 venv/
@@ -29,9 +34,9 @@ env/
 .DS_Store
 Thumbs.db
 
-# Docker
+# Logs
 *.log
 
 # Alembic
-# As revisions são parte do código-fonte e precisam ser versionadas.
-alembic/versions/__pycache__/
+# Revisions são código-fonte; somente caches devem ser ignorados.
+backend/alembic/versions/__pycache__/
