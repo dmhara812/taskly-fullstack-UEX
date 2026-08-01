@@ -126,7 +126,6 @@ Os resultados finais devem ser registrados em `docs/VALIDATION.md`.
 - [Validação](docs/VALIDATION.md)
 - [Estado atual](docs/CURRENT_STATE.md)
 - [Organização da documentação](docs/README.md)
-- [Roteiro de apresentação](docs/PRESENTATION.md)
 
 ## Uso de IA
 

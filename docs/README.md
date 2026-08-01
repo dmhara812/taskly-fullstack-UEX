@@ -11,7 +11,6 @@ docs/
 ├── AI_USAGE.md
 ├── VALIDATION.md
 ├── CURRENT_STATE.md
-├── PRESENTATION.md
 └── prompts/
     ├── README.md
     ├── diagnostico-e-riscos.md
@@ -27,7 +26,6 @@ docs/
 4. `DECISIONS.md` para trade-offs;
 5. `VALIDATION.md` para evidências e pendências reais;
 6. `AI_USAGE.md` para a revisão crítica do uso de IA;
-7. `PRESENTATION.md` para roteiro de demonstração.
 
 ## Curadoria
 
