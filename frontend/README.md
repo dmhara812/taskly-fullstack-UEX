@@ -2,7 +2,7 @@
 
 Frontend do Taskly desenvolvido com React, Vite e TypeScript.
 
-## Stack desta fundação
+## Stack
 
 - React e React Router;
 - TanStack Query para estado remoto;
@@ -52,7 +52,13 @@ npm run build
 - renovação automática do access token;
 - validação da sessão por `GET /auth/me`;
 - rotas públicas e protegidas;
-- logout.
+- logout;
+- gestão de projetos;
+- lista paginada de tarefas;
+- criação, edição, exclusão e atualização de status de tarefas;
+- filtros por status, prioridade e busca;
+- prazo com conversão entre horário local e UTC;
+- tags básicas no formulário e na listagem.
 
 O armazenamento em `localStorage` é um trade-off consciente do case. Para um
 produto real, a evolução recomendada é adotar cookies HttpOnly e proteção CSRF.

@@ -7,7 +7,7 @@ Repositório do case técnico Taskly, organizado como monorepo para manter backe
 ```text
 taskly-fullstack-UEX/
 ├── backend/          # FastAPI, SQLAlchemy, Alembic e pytest
-├── frontend/         # React, Vite, TypeScript e autenticação
+├── frontend/         # React, Vite, TypeScript e produto web
 ├── docs/             # etapas, decisões, estado atual e uso de IA
 ├── .github/          # CI do repositório
 ├── docker-compose.yml
@@ -55,4 +55,4 @@ npm run test
 
 O backend possui autenticação, refresh token, projetos, tarefas, ownership, prazos em UTC, tags relacionais e anexos.
 
-O frontend possui cadastro, login, sessão persistente, renovação automática de token, rotas protegidas e logout. Os fluxos de projetos e tarefas serão implementados nas próximas etapas.
+O frontend possui autenticação persistente, gestão de projetos e lista de tarefas com criação, edição, filtros, status, prioridade, prazo em UTC e tags. O kanban com drag-and-drop e a gestão visual de anexos serão implementados nas próximas etapas.
