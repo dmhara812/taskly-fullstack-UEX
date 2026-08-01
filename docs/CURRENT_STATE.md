@@ -15,26 +15,25 @@
 - Testes backend e frontend ampliados.
 - Scripts de validação local e CI.
 - Docker Compose fullstack com volumes para PostgreSQL e anexos.
-- Documentação consolidada em `SPEC`, `ARCHITECTURE`, `DECISIONS`, `AI_USAGE` e `VALIDATION`.
+- Documentação pública consolidada.
+- Notas operacionais removidas da árvore pública.
 - Decisão de não realizar deploy público registrada.
 
-## Em desenvolvimento
+## Em validação final
 
-- Execução final consolidada dos comandos de validação.
+- Reexecução do GitHub Actions após as correções de Ruff e Blob.
 - Teste manual do Docker Compose fullstack.
-- Preparação do README final e do roteiro de apresentação.
-- Revisão da documentação que será mantida na submissão pública.
+- Classificação final do `npm audit`.
+- Gravação do vídeo de apresentação.
 
-## Pendente
+## Critérios para submissão
 
-- Registrar a última saída completa do backend em `VALIDATION.md`.
-- Registrar a última saída completa do frontend em `VALIDATION.md`.
-- Classificar o resultado final de `npm audit`.
-- Validar upload e download após reinício dos containers.
-- Gravar o vídeo de apresentação.
-- Decidir, antes da submissão, se `docs/etapas/` será removido da árvore pública após cópia local.
+- workflow do backend verde;
+- workflow do frontend verde;
+- upload e download preservados após reinício dos containers;
+- README revisado a partir de uma clonagem limpa;
+- vídeo gravado e link inserido na entrega.
 
-## Último commit
+## Último commit planejado
 
-- Etapa 11 ainda não commitada.
-- Mensagem planejada: `chore: consolida execução local e documentação da entrega`
+`docs: finaliza revisão pública e material de apresentação`

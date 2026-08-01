@@ -126,10 +126,11 @@ Os resultados finais devem ser registrados em `docs/VALIDATION.md`.
 - [Validação](docs/VALIDATION.md)
 - [Estado atual](docs/CURRENT_STATE.md)
 - [Organização da documentação](docs/README.md)
+- [Roteiro de apresentação](docs/PRESENTATION.md)
 
 ## Uso de IA
 
-A IA foi usada como apoio para pesquisa, comparação de alternativas e revisão técnica. As decisões, a integração, as correções, a execução dos testes e a responsabilidade pela entrega pertencem ao desenvolvedor. O histórico de revisão crítica está consolidado em `docs/AI_USAGE.md`.
+A IA foi usada como apoio para pesquisa, comparação de alternativas e revisão técnica. As decisões, a integração, as correções, a execução dos testes e a responsabilidade pela entrega pertencem ao desenvolvedor. A revisão crítica está consolidada em `docs/AI_USAGE.md`. A pasta de prompts contém apenas consultas representativas; notas operacionais completas não fazem parte da árvore pública.
 
 ## Deploy público
 

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeAuthTokens } from '../lib/auth-storage'
 import { apiDownload, apiRequest } from './client'
 
-
 describe('api client', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -51,28 +50,22 @@ describe('api client', () => {
     expect(retryHeaders.get('Authorization')).toBe('Bearer new-access-token')
   })
 
-
   it('downloads protected binary content with the current access token', async () => {
     writeAuthTokens({
       accessToken: 'valid-access-token',
       refreshToken: 'valid-refresh-token',
     })
 
-    // O Blob é criado pelo mesmo ambiente jsdom usado pelo teste.
-    // O Response é simulado somente com o contrato consumido pelo apiDownload,
-    // evitando misturar o Blob nativo do Node com o FileReader do jsdom.
+    // O contrato da resposta é simulado diretamente para não misturar as
+    // implementações de Blob fornecidas por Node e jsdom em ambientes de CI.
     const expectedBlob = new Blob(['arquivo'], {
       type: 'application/pdf',
     })
-
     const blobParser = vi.fn().mockResolvedValue(expectedBlob)
-
     const mockedResponse = {
       ok: true,
       status: 200,
-      headers: new Headers({
-        'Content-Type': 'application/pdf',
-      }),
+      headers: new Headers({ 'Content-Type': 'application/pdf' }),
       blob: blobParser,
     } as unknown as Response
 
@@ -80,22 +73,15 @@ describe('api client', () => {
       .spyOn(window, 'fetch')
       .mockResolvedValueOnce(mockedResponse)
 
-    const blob = await apiDownload(
-      '/attachments/attachment-1/content',
-    )
+    const blob = await apiDownload('/attachments/attachment-1/content')
 
     expect(blob).toBe(expectedBlob)
     expect(blob.type).toBe('application/pdf')
     expect(blob.size).toBe(7)
     expect(blobParser).toHaveBeenCalledOnce()
 
-    const headers = new Headers(
-      fetchSpy.mock.calls[0][1]?.headers,
-    )
-
-    expect(headers.get('Authorization')).toBe(
-      'Bearer valid-access-token',
-    )
+    const headers = new Headers(fetchSpy.mock.calls[0][1]?.headers)
+    expect(headers.get('Authorization')).toBe('Bearer valid-access-token')
   })
 
   it('does not refresh a business-rule forbidden response', async () => {

@@ -1,30 +1,48 @@
 # Validação do Taskly
 
-Este documento registra somente resultados observados pelo desenvolvedor. Comandos sugeridos, mas ainda não executados na rodada final, permanecem marcados como pendentes.
+Este documento registra somente resultados observados pelo desenvolvedor. Correções preparadas, mas ainda não confirmadas por uma nova execução, permanecem identificadas como pendentes de rerun.
 
-## Evidências já observadas
+## Evidências observadas
 
-### Frontend
+### Frontend local
 
-- `npm run lint`: executado sem erro nas saídas apresentadas.
-- `npx tsc --noEmit`: executado sem erro nas saídas apresentadas.
-- `npm run build`: concluído com sucesso; o Vite gerou o bundle de produção.
-- `npx vitest run`: executado em múltiplas rodadas.
-- Foram observados e corrigidos problemas específicos em workers do Vitest, teste de login, rollback de cache e leitura de Blob.
-- A última saída completa de toda a suíte após a correção final do Blob ainda deve ser registrada.
+- `npm run lint`: executado sem erros nas saídas apresentadas.
+- `npx tsc --noEmit`: executado sem erros nas saídas apresentadas.
+- `npm run build`: concluído com sucesso, com bundle de produção gerado pelo Vite.
+- As suítes cobriram autenticação, projetos, tarefas, kanban, rollback, tags e anexos.
+- A interface foi testada em largura reduzida no Opera e a rolagem horizontal do kanban foi reposicionada para o topo após avaliação de usabilidade.
 
-### Validação manual
+### GitHub Actions — frontend
 
-- A interface foi testada em largura reduzida no Opera.
-- A barra horizontal original no final do kanban foi considerada pouco eficiente.
-- O desenvolvedor substituiu o comportamento por uma barra superior sincronizada.
+Na última saída apresentada:
 
-### Backend
+- ESLint passou;
+- TypeScript passou;
+- 28 de 29 testes passaram;
+- o teste de download falhou por incompatibilidade entre o `Blob` retornado pela implementação de `Response` do Node e o `FileReader` do jsdom.
 
-- As migrations, testes de ownership e fluxo integrado foram preparados e utilizados ao longo das etapas.
-- A última saída consolidada de Ruff, Alembic e pytest deve ser registrada antes da submissão.
+A correção preparada simula diretamente `response.blob()` com um Blob do mesmo ambiente do teste e verifica:
 
-## Validação final recomendada
+- retorno do objeto esperado;
+- tipo MIME;
+- tamanho;
+- chamada do parser;
+- envio do bearer token.
+
+**Estado:** correção aplicada no código; novo workflow ainda deve confirmar o resultado.
+
+### GitHub Actions — backend
+
+Na última saída apresentada, `ruff format . --check` encontrou somente diferenças de formatação em:
+
+- `app/tests/test_full_flow.py`;
+- `app/tests/test_migrations.py`.
+
+Não foi indicada falha lógica. Os arquivos foram ajustados para o formato esperado pelo Ruff.
+
+**Estado:** correção aplicada no código; novo workflow ainda deve confirmar o resultado.
+
+## Validação final
 
 ### Backend
 
@@ -57,7 +75,7 @@ npm audit
 npm audit --omit=dev
 ```
 
-Não executar `npm audit fix --force` sem revisar a alteração de versões.
+Não executar `npm audit fix --force` sem revisar as alterações propostas.
 
 ### Docker fullstack
 
@@ -65,38 +83,35 @@ Na raiz do repositório:
 
 ```powershell
 Copy-Item .env.example .env
-
 docker compose config
 docker compose build
 docker compose up -d
 docker compose ps
 ```
 
-Verificações manuais:
+Fluxo manual:
 
-1. acessar `http://localhost:5173`;
-2. cadastrar e autenticar um usuário;
-3. criar projeto e tarefa;
-4. mover a tarefa no kanban;
+1. cadastrar e autenticar um usuário;
+2. criar projeto e tarefa;
+3. alternar entre lista e kanban;
+4. mover a tarefa e recarregar a página;
 5. enviar e baixar um anexo;
 6. reiniciar os containers;
-7. confirmar persistência do banco e do anexo;
-8. conferir `http://localhost:8000/docs`;
-9. encerrar com `docker compose down` sem `-v`.
-
-Use `docker compose down -v` somente quando quiser remover dados e anexos locais.
+7. confirmar persistência do banco e do arquivo;
+8. abrir o Swagger;
+9. encerrar com `docker compose down`, sem `-v`.
 
 ## Matriz final
 
-| Área | Validação | Estado |
+| Área | Última evidência | Estado |
 |---|---|---|
-| Backend lint | Ruff check | Pendente de saída final |
-| Backend format | Ruff format check | Pendente de saída final |
-| Backend testes | pytest e cobertura | Pendente de saída final |
-| Migrations | upgrade até `0004` | Pendente de saída final |
-| Frontend lint | ESLint | Evidência observada; repetir na rodada final |
-| Frontend tipos | TypeScript | Evidência observada; repetir na rodada final |
-| Frontend testes | Vitest | Correções aplicadas; rodada final pendente |
-| Frontend build | Vite build | Evidência observada; repetir na rodada final |
-| Docker Compose | build, health checks e fluxo manual | Pendente |
-| Auditoria npm | classificação dos alertas | Pendente |
+| Backend lint | CI alcançou o format check | Rerun pendente após formatação |
+| Backend format | Dois arquivos identificados | Correção aplicada; rerun pendente |
+| Backend testes | Suíte ampliada e fluxo integrado preparados | Saída final pendente |
+| Migrations | Head esperada `0004_add_attachments` | Saída final pendente |
+| Frontend lint | GitHub Actions passou | Aprovado na última execução |
+| Frontend tipos | GitHub Actions passou | Aprovado na última execução |
+| Frontend testes | 28/29 antes da correção do Blob | Correção aplicada; rerun pendente |
+| Frontend build | Build local concluído nas saídas apresentadas | Repetir na rodada final |
+| Docker Compose | Arquivos e health checks configurados | Fluxo manual pendente |
+| Auditoria npm | Alertas altos observados | Classificação final pendente |

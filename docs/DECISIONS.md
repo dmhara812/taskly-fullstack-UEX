@@ -53,7 +53,7 @@ O repositório possui configuração do Alembic, mas não possui revisions versi
 
 ### Decisão do desenvolvedor
 
-Tratar o banco local do case como recriável e estabelecer uma baseline Alembic reproduzível antes das alterações funcionais. A ordem exata das revisions será definida na Etapa 02 para manter o histórico compreensível e validável.
+Tratar o banco local do case como recriável e estabelecer uma baseline Alembic reproduzível antes das alterações funcionais. A sequência das revisions foi mantida compreensível e validável, separando baseline e evoluções incrementais.
 
 ### Justificativa
 
@@ -119,7 +119,7 @@ Anexos exigem persistência de metadados e armazenamento de bytes. O ambiente de
 
 ### Decisão do desenvolvedor
 
-Criar uma abstração `StorageBackend`, usar implementação local em desenvolvimento e testes e selecionar a implementação de produção na etapa de deploy.
+Criar uma abstração `StorageBackend`, usar implementação local em desenvolvimento e testes e selecionar a implementação de produção quando houver um ambiente externo definido.
 
 Os metadados serão persistidos em uma entidade `Attachment`, incluindo nome original, chave ou URL, tipo, tamanho e `task_id`.
 
@@ -425,7 +425,7 @@ O contrato simplifica o formulário, impede associação direta por ID de outra 
 - `tags: null` é inválido.
 - A resposta retorna objetos com ID e nome para renderização e cache.
 - Tags sem tarefas permanecem disponíveis para reutilização e autocomplete.
-- A exclusão administrativa de tags fica fora do escopo desta etapa.
+- A exclusão administrativa de tags fica fora do escopo atual.
 
 ---
 
@@ -459,3 +459,40 @@ A decisão prioriza os critérios de maior peso: funcionalidade, arquitetura, te
 - O storage local permanecerá persistente por volume Docker.
 - Um deploy futuro deverá usar PostgreSQL gerenciado, armazenamento de objetos, segredos e observabilidade.
 - A ausência de deploy público será documentada como priorização técnica, não como requisito esquecido.
+
+---
+
+## DEC-016 — Curar a documentação pública
+
+**Status:** aprovada
+**Data:** 01/08/2026
+
+### Contexto
+
+Os documentos incrementais usados durante o desenvolvimento repetiam código, comandos e registros operacionais. Embora úteis como notas de trabalho, sua permanência no repositório público poderia desviar a avaliação do produto e sugerir a execução automática de um roteiro.
+
+### Alternativas consideradas
+
+1. Manter todos os documentos incrementais e todas as consultas no repositório.
+2. Remover qualquer evidência de uso de IA.
+3. Manter documentação consolidada e uma amostra representativa das consultas, preservando as notas completas fora do repositório.
+
+### Decisão do desenvolvedor
+
+Adotar a terceira alternativa:
+
+- remover `docs/etapas/` da árvore pública após cópia local;
+- manter `SPEC`, `ARCHITECTURE`, `DECISIONS`, `AI_USAGE`, `VALIDATION` e estado final;
+- manter apenas três consultas representativas em `docs/prompts/`;
+- registrar correções e decisões humanas no `AI_USAGE.md`.
+
+### Justificativa
+
+A seleção preserva rastreabilidade e demonstra uso crítico de IA sem transformar a documentação em um roteiro de implementação. O avaliador encontra rapidamente requisitos, arquitetura, trade-offs e evidências reais.
+
+### Consequências
+
+- notas completas permanecem disponíveis apenas como material privado de trabalho;
+- referências a fases incrementais são removidas da documentação pública;
+- o README passa a apontar somente para documentos consolidados;
+- a autoria das decisões, correções e validações fica explicitamente atribuída ao desenvolvedor.
