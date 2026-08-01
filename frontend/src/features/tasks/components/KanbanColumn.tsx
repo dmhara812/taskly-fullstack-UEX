@@ -10,6 +10,7 @@ interface KanbanColumnProps {
   isReadOnly: boolean
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
+  onAttachments: (task: Task) => void
   onStatusChange: (task: Task, status: TaskStatus) => void
 }
 
@@ -21,6 +22,7 @@ export function KanbanColumn({
   isReadOnly,
   onEdit,
   onDelete,
+  onAttachments,
   onStatusChange,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
@@ -59,6 +61,7 @@ export function KanbanColumn({
               isReadOnly={isReadOnly}
               onEdit={onEdit}
               onDelete={onDelete}
+              onAttachments={onAttachments}
               onStatusChange={onStatusChange}
             />
           ))

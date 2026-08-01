@@ -20,6 +20,7 @@ interface TaskListItemProps {
   isReadOnly: boolean
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
+  onAttachments: (task: Task) => void
   onStatusChange: (task: Task, status: TaskStatus) => void
 }
 
@@ -29,6 +30,7 @@ export function TaskListItem({
   isReadOnly,
   onEdit,
   onDelete,
+  onAttachments,
   onStatusChange,
 }: TaskListItemProps) {
   const overdue = isTaskOverdue(task.due_at, task.status)
@@ -104,6 +106,14 @@ export function TaskListItem({
         </label>
 
         <div className="task-row-buttons">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={isBusy}
+            onClick={() => onAttachments(task)}
+          >
+            Anexos
+          </button>
           <button
             className="secondary-button"
             type="button"

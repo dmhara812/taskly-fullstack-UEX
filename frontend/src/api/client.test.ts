@@ -1,6 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeAuthTokens } from '../lib/auth-storage'
-import { apiRequest } from './client'
+import { apiDownload, apiRequest } from './client'
+
+function readBlobAsText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.addEventListener('load', () => {
+      resolve(String(reader.result ?? ''))
+    })
+
+    reader.addEventListener('error', () => {
+      reject(
+        reader.error ??
+          new Error('Não foi possível ler o conteúdo do Blob no teste.'),
+      )
+    })
+
+    reader.readAsText(blob)
+  })
+}
 
 describe('api client', () => {
   beforeEach(() => {
@@ -48,6 +67,38 @@ describe('api client', () => {
 
     const retryHeaders = new Headers(fetchSpy.mock.calls[2][1]?.headers)
     expect(retryHeaders.get('Authorization')).toBe('Bearer new-access-token')
+  })
+
+
+  it('downloads protected binary content with the current access token', async () => {
+    writeAuthTokens({
+      accessToken: 'valid-access-token',
+      refreshToken: 'valid-refresh-token',
+    })
+
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValueOnce(
+      new Response('arquivo', {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+        },
+      }),
+    )
+
+    const blob = await apiDownload(
+      '/attachments/attachment-1/content',
+    )
+
+    expect(blob.type).toBe('application/pdf')
+    expect(await readBlobAsText(blob)).toBe('arquivo')
+
+    const headers = new Headers(
+      fetchSpy.mock.calls[0][1]?.headers,
+    )
+
+    expect(headers.get('Authorization')).toBe(
+      'Bearer valid-access-token',
+    )
   })
 
   it('does not refresh a business-rule forbidden response', async () => {

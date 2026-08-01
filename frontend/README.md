@@ -59,10 +59,12 @@ npm run build
 - criação, edição, exclusão e atualização de status de tarefas;
 - filtros por status, prioridade e busca;
 - prazo com conversão entre horário local e UTC;
-- tags básicas no formulário e na listagem;
+- tags com autocomplete, criação de novos nomes e exibição na lista e no kanban;
 - toggle entre lista e kanban;
 - carregamento completo das páginas no quadro;
-- drag-and-drop de status com atualização otimista e rollback.
+- drag-and-drop de status com atualização otimista e rollback;
+- anexos autenticados com upload, listagem, download e exclusão;
+- consulta de anexos preservada em projetos arquivados, sem permitir alterações.
 
 O armazenamento em `localStorage` é um trade-off consciente do case. Para um
 produto real, a evolução recomendada é adotar cookies HttpOnly e proteção CSRF.

@@ -23,6 +23,7 @@ interface KanbanTaskCardContentProps {
   isReadOnly?: boolean
   onEdit?: (task: Task) => void
   onDelete?: (task: Task) => void
+  onAttachments?: (task: Task) => void
   onStatusChange?: (task: Task, status: TaskStatus) => void
 }
 
@@ -33,6 +34,7 @@ export function KanbanTaskCardContent({
   isReadOnly = false,
   onEdit,
   onDelete,
+  onAttachments,
   onStatusChange,
 }: KanbanTaskCardContentProps) {
   const overdue = isTaskOverdue(task.due_at, task.status)
@@ -97,6 +99,14 @@ export function KanbanTaskCardContent({
             <button
               className="text-button"
               type="button"
+              disabled={isBusy}
+              onClick={() => onAttachments?.(task)}
+            >
+              Anexos
+            </button>
+            <button
+              className="text-button"
+              type="button"
               disabled={isBusy || isReadOnly}
               onClick={() => onEdit?.(task)}
             >
@@ -123,6 +133,7 @@ interface KanbanTaskCardProps {
   isReadOnly: boolean
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
+  onAttachments: (task: Task) => void
   onStatusChange: (task: Task, status: TaskStatus) => void
 }
 
@@ -132,6 +143,7 @@ export function KanbanTaskCard({
   isReadOnly,
   onEdit,
   onDelete,
+  onAttachments,
   onStatusChange,
 }: KanbanTaskCardProps) {
   const {
@@ -177,6 +189,7 @@ export function KanbanTaskCard({
         isReadOnly={isReadOnly}
         onEdit={onEdit}
         onDelete={onDelete}
+        onAttachments={onAttachments}
         onStatusChange={onStatusChange}
       />
     </article>

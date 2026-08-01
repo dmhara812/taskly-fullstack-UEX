@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../../../api/client'
+import { TaskAttachmentsDialog } from '../../attachments/components/TaskAttachmentsDialog'
 import { KanbanBoard } from '../../tasks/components/KanbanBoard'
 import { TaskFormDialog } from '../../tasks/components/TaskFormDialog'
 import { TaskListItem } from '../../tasks/components/TaskListItem'
@@ -61,6 +62,7 @@ export function ProjectWorkspacePage() {
   const [search, setSearch] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [attachmentsTask, setAttachmentsTask] = useState<Task | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const projectQuery = useProject(projectId)
@@ -518,6 +520,7 @@ export function ProjectWorkspacePage() {
                         setEditingTask(selectedTask)
                       }}
                       onDelete={deleteTask}
+                      onAttachments={setAttachmentsTask}
                       onStatusChange={changeTaskStatus}
                     />
                   ))}
@@ -559,6 +562,7 @@ export function ProjectWorkspacePage() {
                   setEditingTask(selectedTask)
                 }}
                 onDelete={deleteTask}
+                onAttachments={setAttachmentsTask}
                 onStatusChange={moveTaskOnKanban}
               />
             )}
@@ -573,6 +577,14 @@ export function ProjectWorkspacePage() {
           errorMessage={actionError}
           onClose={closeDialog}
           onSubmit={submitTask}
+        />
+      ) : null}
+
+      {attachmentsTask ? (
+        <TaskAttachmentsDialog
+          task={attachmentsTask}
+          isReadOnly={isReadOnly}
+          onClose={() => setAttachmentsTask(null)}
         />
       ) : null}
     </main>

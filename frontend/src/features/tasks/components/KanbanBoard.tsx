@@ -32,6 +32,7 @@ interface KanbanBoardProps {
   isReadOnly: boolean
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
+  onAttachments: (task: Task) => void
   onStatusChange: (task: Task, status: TaskStatus) => void
 }
 
@@ -45,6 +46,7 @@ export function KanbanBoard({
   isReadOnly,
   onEdit,
   onDelete,
+  onAttachments,
   onStatusChange,
 }: KanbanBoardProps) {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
@@ -189,6 +191,7 @@ export function KanbanBoard({
                 isReadOnly={isReadOnly}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onAttachments={onAttachments}
                 onStatusChange={onStatusChange}
               />
             ))}

@@ -55,4 +55,4 @@ npm run test
 
 O backend possui autenticação, refresh token, projetos, tarefas, ownership, prazos em UTC, tags relacionais e anexos.
 
-O frontend possui autenticação persistente, gestão de projetos, lista de tarefas e quadro kanban com drag-and-drop persistido. A gestão visual de anexos e o autocomplete de tags serão implementados na Etapa 09.
+O frontend possui autenticação persistente, gestão de projetos, lista e kanban de tarefas, drag-and-drop persistido, autocomplete de tags e gestão autenticada de anexos com upload, download e exclusão.

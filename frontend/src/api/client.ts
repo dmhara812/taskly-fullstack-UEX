@@ -123,10 +123,10 @@ function refreshSession(): Promise<boolean> {
   return refreshInFlight
 }
 
-export async function apiRequest<T>(
+async function executeApiRequest(
   path: string,
   options: ApiRequestOptions = {},
-): Promise<T> {
+): Promise<Response> {
   const {
     authenticated = true,
     retryAfterRefresh = true,
@@ -140,11 +140,7 @@ export async function apiRequest<T>(
   })
 
   if (response.ok) {
-    if (response.status === 204) {
-      return undefined as T
-    }
-
-    return (await response.json()) as T
+    return response
   }
 
   const payload = await readErrorPayload(response)
@@ -157,7 +153,7 @@ export async function apiRequest<T>(
     const refreshed = await refreshSession()
 
     if (refreshed) {
-      return apiRequest<T>(path, {
+      return executeApiRequest(path, {
         ...options,
         retryAfterRefresh: false,
       })
@@ -169,4 +165,27 @@ export async function apiRequest<T>(
   }
 
   throw new ApiError(response.status, detail)
+}
+
+export async function apiRequest<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  const response = await executeApiRequest(path, options)
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  return (await response.json()) as T
+}
+
+export async function apiDownload(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<Blob> {
+  // Downloads usam a mesma renovação de sessão das chamadas JSON. A diferença
+  // é somente o parser final, preservando autenticação e tratamento de erros.
+  const response = await executeApiRequest(path, options)
+  return response.blob()
 }

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { TagAutocompleteInput } from '../../tags/components/TagAutocompleteInput'
 import { toDateTimeLocalValue, toUtcISOString } from '../date'
 import type {
   Task,
@@ -105,6 +106,7 @@ export function TaskFormDialog({
   onSubmit,
 }: TaskFormDialogProps) {
   const {
+    control,
     register,
     handleSubmit,
     formState: { errors },
@@ -256,15 +258,23 @@ export function TaskFormDialog({
 
           <div className="field-group task-field-full">
             <label htmlFor="task-tags">Tags</label>
-            <input
-              id="task-tags"
-              placeholder="frontend, urgente, revisão"
-              aria-invalid={Boolean(errors.tagsText)}
-              aria-describedby="task-tags-hint"
-              {...register('tagsText')}
+            <Controller
+              control={control}
+              name="tagsText"
+              render={({ field }) => (
+                <TagAutocompleteInput
+                  id="task-tags"
+                  value={field.value}
+                  disabled={isPending}
+                  invalid={Boolean(errors.tagsText)}
+                  describedBy="task-tags-hint"
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                />
+              )}
             />
             <span className="field-hint" id="task-tags-hint">
-              Separe as tags por vírgula. Máximo de 10 tags.
+              Separe as tags por vírgula ou selecione uma sugestão. Máximo de 10 tags.
             </span>
             {errors.tagsText ? (
               <span className="field-error">{errors.tagsText.message}</span>
