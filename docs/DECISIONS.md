@@ -8,7 +8,7 @@ As alternativas podem ter sido organizadas com apoio de IA, mas a decisão aplic
 
 ## DEC-001 — Preservar a arquitetura em camadas
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -38,7 +38,7 @@ A base já é coerente, testável e adequada ao prazo. Uma reescrita aumentaria 
 
 ## DEC-002 — Criar uma baseline Alembic reproduzível
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -69,7 +69,7 @@ O avaliador deve conseguir iniciar o projeto em banco vazio com `alembic upgrade
 
 ## DEC-003 — Adotar tags relacionais por usuário
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -104,7 +104,7 @@ A solução melhora consistência, reutilização, filtros e autocomplete, sem e
 
 ## DEC-004 — Isolar anexos atrás de uma interface de storage
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -138,7 +138,7 @@ A abstração mantém o domínio independente do provedor, reduz risco durante o
 
 ## DEC-005 — Usar UTC no contrato de prazos
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -169,7 +169,7 @@ A decisão evita ambiguidades e deslocamentos silenciosos entre ambientes.
 
 ## DEC-006 — Manter prioridade como recurso adicional
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -193,7 +193,7 @@ O recurso já funciona, agrega valor ao produto e não desvia o cronograma quand
 
 ## DEC-007 — Carregar todas as páginas para compor o kanban
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -223,7 +223,7 @@ A solução preserva a API existente, evita duplicação prematura e garante vis
 
 ## DEC-008 — Tornar projeto arquivado somente leitura
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -248,7 +248,7 @@ A regra é previsível, reduz inconsistências e evita comportamentos diferentes
 
 ## DEC-009 — Estratégia de sessão adequada ao prazo do case
 
-**Status:** aprovada com trade-off documentado  
+**Status:** aprovada com trade-off documentado
 **Data:** 31/07/2026
 
 ### Contexto
@@ -275,7 +275,7 @@ A abordagem reduz complexidade operacional no prazo de três dias e permite demo
 
 ## DEC-010 — IA como apoio, desenvolvedor como responsável técnico
 
-**Status:** aprovada  
+**Status:** aprovada
 **Data:** 31/07/2026
 
 ### Contexto
@@ -295,3 +295,134 @@ O registro representa o uso real de uma ferramenta de apoio sem transferir autor
 - `AI_USAGE.md` distinguirá sugestão, decisão, alteração humana e validação real.
 - Nenhum resultado será declarado como executado sem evidência.
 - Divergências entre sugestão e implementação serão registradas.
+
+---
+
+## DEC-011 — Persistir valores textuais dos enums
+
+**Status:** aprovada
+**Data:** 31/07/2026
+
+### Contexto
+
+Quando recebe uma classe `Enum` Python, o SQLAlchemy persiste os nomes dos membros por padrão. Assim, `TaskStatus.TODO = "todo"` poderia ser armazenado como `TODO`, divergindo do contrato textual da API e das migrations minúsculas.
+
+### Alternativas consideradas
+
+1. Manter os nomes internos em maiúsculas no PostgreSQL.
+2. Configurar `values_callable` para persistir os valores públicos dos enums.
+
+### Decisão do desenvolvedor
+
+Configurar explicitamente os campos enum para persistirem os valores públicos: `active`, `archived`, `todo`, `in_progress`, `done`, `cancelled`, `low`, `medium` e `high`.
+
+### Justificativa
+
+O banco passa a refletir o contrato público, reduz ambiguidades em SQL manual, migrations e depuração.
+
+### Consequências
+
+- A baseline utiliza labels minúsculos.
+- Bancos antigos criados por `create_all()` devem ser recriados para esta baseline.
+- Novos enums devem declarar a mesma estratégia explicitamente.
+
+---
+
+## DEC-012 — Validar migrations no setup da suíte
+
+**Status:** aprovada
+**Data:** 31/07/2026
+
+### Contexto
+
+A suíte original criava tabelas diretamente pelo metadata do ORM. Esse fluxo podia aprovar testes mesmo quando `alembic upgrade head` não conseguia construir o banco.
+
+### Alternativas consideradas
+
+1. Continuar usando `create_all()` e adicionar um teste isolado de migration.
+2. Aplicar Alembic como preparação principal da sessão de testes.
+
+### Decisão do desenvolvedor
+
+Recriar o schema do banco exclusivo de testes e executar `alembic upgrade head` antes da suíte.
+
+### Justificativa
+
+O mesmo caminho usado no deploy passa a ser exercitado antes dos testes de API, aproximando a validação do ambiente real.
+
+### Consequências
+
+- `TEST_DATABASE_URL` deve apontar para banco descartável.
+- O setup interrompe a execução quando a URL de teste coincide com a URL de desenvolvimento fora de `APP_ENV=test`.
+- Falhas de migration impedem o início dos testes funcionais.
+
+---
+
+## DEC-013 — Organizar o Taskly como monorepo
+
+**Status:** aprovada
+**Data:** 31/07/2026
+
+### Contexto
+
+O repositório herdado possuía somente o backend diretamente na raiz. O Taskly exige backend, frontend, documentação e orquestração fullstack no mesmo projeto.
+
+### Alternativas consideradas
+
+1. Manter o backend na raiz e criar somente `frontend/` ao lado dele.
+2. Criar `backend/` e `frontend/`, preservando arquivos globais na raiz.
+3. Separar backend e frontend em repositórios diferentes.
+
+### Decisão do desenvolvedor
+
+Adotar um monorepo com:
+
+- `backend/` para runtime, dependências, migrations, testes e imagem Docker da API;
+- `frontend/` para React/Vite/TypeScript;
+- `docs/` na raiz para documentação transversal;
+- `.github/`, `.gitignore`, `.pre-commit-config.yaml`, `docker-compose.yml` e README principal na raiz.
+
+### Justificativa
+
+A estrutura aproxima o repositório da arquitetura final exigida, mantém um único histórico do case e permite que Docker Compose e CI coordenem os dois lados da aplicação.
+
+### Consequências
+
+- Comandos Python passam a ser executados em `backend/`.
+- Comandos npm serão executados em `frontend/`.
+- Git e Docker Compose continuam sendo executados na raiz.
+- A CI precisa declarar o diretório de trabalho de cada job.
+- Configurações que dependiam do diretório corrente devem usar caminhos explícitos.
+
+---
+
+## DEC-014 — Resolver tags por nome no fluxo de tarefas
+
+**Status:** aprovada
+**Data:** 31/07/2026
+
+### Contexto
+
+A modelagem relacional aprovada exige definir como o frontend associa tags a uma tarefa. O envio direto de IDs exigiria criação prévia e validação adicional de ownership.
+
+### Alternativas consideradas
+
+1. Receber somente IDs de tags existentes.
+2. Receber objetos completos de tags.
+3. Receber nomes, reutilizar tags existentes e criar as ausentes para o usuário.
+
+### Decisão do desenvolvedor
+
+Receber uma lista de nomes nos payloads de criação e atualização de tarefas. O backend normaliza, deduplica, busca tags do proprietário e cria somente as ausentes.
+
+### Justificativa
+
+O contrato simplifica o formulário, impede associação direta por ID de outra conta e mantém a regra de ownership centralizada no backend.
+
+### Consequências
+
+- `tags: []` remove todas as associações da tarefa.
+- `tags: null` é inválido.
+- A resposta retorna objetos com ID e nome para renderização e cache.
+- Tags sem tarefas permanecem disponíveis para reutilização e autocomplete.
+- A exclusão administrativa de tags fica fora do escopo desta etapa.

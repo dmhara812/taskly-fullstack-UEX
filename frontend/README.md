@@ -39,10 +39,7 @@ A aplicação fica disponível em `http://localhost:5173`.
 ## Validação
 
 ```powershell
-npm run lint
-npx tsc --noEmit
-npm run test
-npm run build
+npm run check
 ```
 
 ## Fluxos disponíveis
@@ -68,3 +65,7 @@ npm run build
 
 O armazenamento em `localStorage` é um trade-off consciente do case. Para um
 produto real, a evolução recomendada é adotar cookies HttpOnly e proteção CSRF.
+
+O comando `npm run check` executa ESLint, TypeScript, Vitest em um único
+worker e o build de produção. A configuração serial reduz instabilidades de
+workers observadas no Windows sem alterar o comportamento da aplicação.

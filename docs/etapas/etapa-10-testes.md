@@ -1,3 +1,1052 @@
+# Etapa 10 — Testes e estabilização
+
+## 1. Objetivo
+
+Ampliar a proteção contra regressões, consolidar as correções encontradas nas
+validações locais e tornar a verificação do projeto reproduzível antes do
+deploy. Esta etapa não cria funcionalidades de produto.
+
+## 2. O que foi feito e por quê
+
+### Backend
+
+- adicionados testes da head Alembic e da revision realmente aplicada;
+- inspecionado o schema criado pelas migrations;
+- protegidos campos obrigatórios, timezone, constraints e cascades;
+- validados os valores públicos dos enums PostgreSQL;
+- ampliado o fluxo integrado para incluir tags, upload, download, mudança de
+  status, arquivamento e modo somente leitura;
+- habilitado relatório de cobertura na CI sem impor limite ainda não medido.
+
+### Frontend
+
+- adicionado teste da página de cadastro;
+- adicionado teste da sincronização da barra horizontal superior;
+- protegido o comportamento somente leitura do kanban arquivado;
+- mantida a configuração serial do Vitest usada para estabilizar o Windows;
+- criado `npm run check` para lint, TypeScript, testes e build;
+- ajustada a CI para instalar exatamente o `package-lock.json` com `npm ci`.
+
+### Repositório
+
+- criados scripts de validação para PowerShell e shell;
+- criado `docs/VALIDATION.md`;
+- atualizados README, `AI_USAGE.md` e `CURRENT_STATE.md`.
+
+## 3. Decisões técnicas
+
+### Testar migrations reais em vez de apenas metadata
+
+Os testes continuam executando `alembic upgrade head` em banco vazio. A nova
+cobertura verifica também a revision registrada, tabelas, constraints, cascades
+e enums. Isso detecta diferenças que `Base.metadata.create_all()` ocultaria.
+
+### Não estabelecer cobertura mínima sem linha de base
+
+A CI gera o relatório de cobertura, mas não falha por percentual nesta etapa.
+Um limite arbitrário poderia bloquear o case sem indicar risco real. O valor
+poderá ser definido depois de medir a suíte completa.
+
+### Usar `npm ci` na CI
+
+A instalação da integração contínua deve reproduzir o lockfile. Por isso,
+`frontend/package-lock.json` passa a ser requisito do commit.
+
+### Não aplicar correção forçada do npm
+
+As duas vulnerabilidades precisam ser classificadas. Atualizações major não
+serão aplicadas automaticamente com `--force`.
+
+Não houve nova decisão arquitetural de produto; por isso `DECISIONS.md` não foi
+alterado.
+
+## 4. Dependências e ordem
+
+1. aplicar o patch na raiz;
+2. confirmar que `frontend/package-lock.json` está versionado;
+3. subir o PostgreSQL e criar o banco exclusivo de testes;
+4. executar as migrations;
+5. rodar o script consolidado;
+6. executar a regressão manual;
+7. analisar `npm audit`;
+8. registrar as saídas reais;
+9. commitar somente após aprovação.
+
+## 5. Arquivos criados ou alterados
+
+### Criados
+
+- `backend/app/tests/test_migrations.py`;
+- `frontend/src/features/auth/pages/RegisterPage.test.tsx`;
+- `frontend/src/features/tasks/components/KanbanBoard.test.tsx`;
+- `scripts/validate.ps1`;
+- `scripts/validate.sh`;
+- `docs/VALIDATION.md`;
+- `docs/etapas/etapa-10-testes.md`;
+- `docs/prompts/prompt-etapa-10-testes.md`.
+
+### Alterados
+
+- `backend/app/tests/test_full_flow.py`;
+- `.github/workflows/ci.yml`;
+- `frontend/package.json`;
+- `README.md`;
+- `frontend/README.md`;
+- `docs/AI_USAGE.md`;
+- `docs/CURRENT_STATE.md`.
+
+## 6. Conteúdo completo dos arquivos criados ou alterados
+
+O conteúdo deste próprio documento não é reproduzido recursivamente. Os demais
+arquivos da etapa são apresentados abaixo como referência integral.
+
+### `.github/workflows/ci.yml`
+
+~~~~yaml
+name: Taskly Backend CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend-lint-and-test:
+    name: Backend lint and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: projects_api_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d projects_api_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_NAME: "Taskly API"
+      APP_ENV: "test"
+      APP_DEBUG: "false"
+      APP_VERSION: "0.1.0"
+      DATABASE_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/projects_api_test"
+      TEST_DATABASE_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/projects_api_test"
+      JWT_SECRET_KEY: "test-secret-key-for-ci"
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:8000"
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Ruff lint
+        run: ruff check .
+
+      - name: Check Ruff formatting
+        run: ruff format . --check
+
+      - name: Run tests
+        run: python -m pytest --cov=app --cov-report=term-missing
+
+  frontend-lint-test-build:
+    name: Frontend lint, test and build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run frontend validation
+        run: npm run check
+~~~~
+
+### `README.md`
+
+~~~~markdown
+# Taskly Fullstack
+
+Repositório do case técnico Taskly, organizado como monorepo para manter backend, frontend e documentação no mesmo histórico Git.
+
+## Estrutura atual
+
+```text
+taskly-fullstack-UEX/
+├── backend/          # FastAPI, SQLAlchemy, Alembic e pytest
+├── frontend/         # React, Vite, TypeScript e produto web
+├── docs/             # etapas, decisões, estado atual e uso de IA
+├── .github/          # CI do repositório
+├── docker-compose.yml
+└── README.md
+```
+
+## Diretórios de execução
+
+### Raiz do repositório
+
+Use para Git e Docker Compose:
+
+```powershell
+cd "C:\Users\Daniel Hara\Documents\Projetos\taskly-fullstack-UEX"
+git status
+docker compose up -d
+```
+
+### Raiz do backend
+
+Use para Alembic, Ruff e pytest:
+
+```powershell
+cd backend
+alembic upgrade head
+ruff check .
+ruff format . --check
+python -m pytest
+```
+
+### Raiz do frontend
+
+Use para npm, TypeScript, ESLint e Vitest:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+npm run lint
+npx tsc --noEmit
+npm run test
+```
+
+## Estado funcional
+
+O backend possui autenticação, refresh token, projetos, tarefas, ownership, prazos em UTC, tags relacionais e anexos.
+
+O frontend possui autenticação persistente, gestão de projetos, lista e kanban de tarefas, drag-and-drop persistido, autocomplete de tags e gestão autenticada de anexos com upload, download e exclusão.
+
+
+## Validação consolidada
+
+Com as dependências já instaladas, execute na raiz do repositório:
+
+```powershell
+.\scripts\validate.ps1
+```
+
+Para instalar novamente as dependências bloqueadas antes da validação:
+
+```powershell
+.\scripts\validate.ps1 -InstallDependencies
+```
+
+Em Linux ou macOS:
+
+```bash
+./scripts/validate.sh
+```
+
+O frontend utiliza `npm ci` na integração contínua. Portanto,
+`frontend/package-lock.json` deve permanecer versionado e sincronizado com o
+`package.json`. O relatório de `npm audit` deve ser analisado antes de qualquer
+uso de `npm audit fix --force`, pois a opção pode introduzir versões
+incompatíveis.
+~~~~
+
+### `backend/app/tests/test_full_flow.py`
+
+~~~~python
+from fastapi.testclient import TestClient
+
+
+def test_full_user_project_task_flow(client: TestClient) -> None:
+    """Cobre autenticação, tags, anexos, status e arquivamento em conjunto."""
+    user_payload = {
+        "name": "Ana Silva",
+        "email": "ana.flow@example.com",
+        "password": "StrongPassword123",
+    }
+
+    register_response = client.post("/api/v1/auth/register", json=user_payload)
+    assert register_response.status_code == 201
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": user_payload["email"],
+            "password": user_payload["password"],
+        },
+    )
+    assert login_response.status_code == 200
+
+    access_token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    me_response = client.get("/api/v1/auth/me", headers=headers)
+    assert me_response.status_code == 200
+    assert me_response.json()["user"]["email"] == user_payload["email"]
+
+    project_response = client.post(
+        "/api/v1/projects",
+        json={
+            "name": "Portfolio API",
+            "description": "Full flow test project.",
+        },
+        headers=headers,
+    )
+    assert project_response.status_code == 201
+
+    project_id = project_response.json()["id"]
+    task_response = client.post(
+        "/api/v1/tasks",
+        json={
+            "project_id": project_id,
+            "title": "Create full flow test",
+            "short_description": "Validate the complete backend flow.",
+            "description": "Ensure the main Taskly backend flow works.",
+            "priority": "high",
+            "due_at": "2026-06-15T21:30:00Z",
+            "tags": ["Backend", "Release"],
+        },
+        headers=headers,
+    )
+    assert task_response.status_code == 201
+
+    task_data = task_response.json()
+    task_id = task_data["id"]
+    assert task_data["project_id"] == project_id
+    assert [tag["name"] for tag in task_data["tags"]] == [
+        "Backend",
+        "Release",
+    ]
+
+    upload_response = client.post(
+        f"/api/v1/tasks/{task_id}/attachments",
+        files={
+            "file": (
+                "evidence.pdf",
+                b"%PDF-1.4\nTaskly integration evidence",
+                "application/pdf",
+            )
+        },
+        headers=headers,
+    )
+    assert upload_response.status_code == 201
+    attachment = upload_response.json()
+
+    update_response = client.patch(
+        f"/api/v1/tasks/{task_id}",
+        json={"status": "done"},
+        headers=headers,
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["status"] == "done"
+    assert len(update_response.json()["attachments"]) == 1
+
+    tasks_response = client.get(
+        f"/api/v1/tasks?project_id={project_id}",
+        headers=headers,
+    )
+    assert tasks_response.status_code == 200
+    assert tasks_response.json()["total"] == 1
+    assert tasks_response.json()["items"][0]["status"] == "done"
+
+    download_response = client.get(attachment["url"], headers=headers)
+    assert download_response.status_code == 200
+    assert download_response.content.startswith(b"%PDF-")
+
+    archive_response = client.patch(
+        f"/api/v1/projects/{project_id}/archive",
+        headers=headers,
+    )
+    assert archive_response.status_code == 200
+    assert archive_response.json()["status"] == "archived"
+
+    blocked_update = client.patch(
+        f"/api/v1/tasks/{task_id}",
+        json={"status": "cancelled"},
+        headers=headers,
+    )
+    assert blocked_update.status_code == 400
+    assert blocked_update.json()["detail"] == (
+        "Cannot modify tasks in archived projects"
+    )
+
+    read_only_task = client.get(f"/api/v1/tasks/{task_id}", headers=headers)
+    assert read_only_task.status_code == 200
+
+    read_only_download = client.get(attachment["url"], headers=headers)
+    assert read_only_download.status_code == 200
+~~~~
+
+### `backend/app/tests/test_migrations.py`
+
+~~~~python
+from pathlib import Path
+
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_database_is_at_the_single_alembic_head(db_session: Session) -> None:
+    """Garante que a suíte está validando exatamente a revision de deploy."""
+    config = Config(BACKEND_ROOT / "alembic.ini")
+    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    script = ScriptDirectory.from_config(config)
+
+    assert script.get_heads() == ["0004_add_attachments"]
+
+    current_revision = db_session.execute(
+        text("SELECT version_num FROM alembic_version")
+    ).scalar_one()
+
+    assert current_revision == script.get_current_head()
+
+
+def test_migrated_schema_contains_taskly_relations_and_constraints(
+    db_session: Session,
+) -> None:
+    """Detecta divergências entre models e a estrutura criada pelo Alembic."""
+    inspector = inspect(db_session.get_bind())
+    expected_tables = {
+        "alembic_version",
+        "attachments",
+        "projects",
+        "tags",
+        "task_tags",
+        "tasks",
+        "users",
+    }
+
+    assert expected_tables.issubset(set(inspector.get_table_names()))
+
+    task_columns = {
+        column["name"]: column for column in inspector.get_columns("tasks")
+    }
+    assert {
+        "short_description",
+        "description",
+        "due_at",
+        "priority",
+        "status",
+    }.issubset(task_columns)
+    assert task_columns["short_description"]["nullable"] is False
+    assert getattr(task_columns["due_at"]["type"], "timezone", False) is True
+
+    tag_unique_constraints = {
+        tuple(constraint["column_names"])
+        for constraint in inspector.get_unique_constraints("tags")
+    }
+    assert ("owner_id", "normalized_name") in tag_unique_constraints
+
+    attachment_foreign_keys = inspector.get_foreign_keys("attachments")
+    task_foreign_key = next(
+        foreign_key
+        for foreign_key in attachment_foreign_keys
+        if foreign_key["constrained_columns"] == ["task_id"]
+    )
+    assert task_foreign_key["referred_table"] == "tasks"
+    assert task_foreign_key.get("options", {}).get("ondelete") == "CASCADE"
+
+
+def test_postgresql_enums_expose_the_public_api_values(
+    db_session: Session,
+) -> None:
+    """Impede regressão para nomes internos como TODO ou IN_PROGRESS."""
+    rows = db_session.execute(
+        text(
+            """
+            SELECT type.typname,
+                   array_agg(enum.enumlabel ORDER BY enum.enumsortorder) AS labels
+            FROM pg_type AS type
+            JOIN pg_enum AS enum ON enum.enumtypid = type.oid
+            WHERE type.typname IN ('project_status', 'task_priority', 'task_status')
+            GROUP BY type.typname
+            """
+        )
+    ).mappings()
+
+    values = {row["typname"]: list(row["labels"]) for row in rows}
+
+    assert values == {
+        "project_status": ["active", "archived"],
+        "task_priority": ["low", "medium", "high"],
+        "task_status": ["todo", "in_progress", "done", "cancelled"],
+    }
+~~~~
+
+### `frontend/README.md`
+
+~~~~markdown
+# Taskly Frontend
+
+Frontend do Taskly desenvolvido com React, Vite e TypeScript.
+
+## Stack
+
+- React e React Router;
+- TanStack Query para estado remoto e rollback de mutations;
+- dnd-kit para drag-and-drop do kanban;
+- React Hook Form e Zod para formulários;
+- Vitest e Testing Library para testes;
+- ESLint e TypeScript em modo estrito.
+
+## Configuração
+
+Copie o arquivo de ambiente:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Valor padrão:
+
+```env
+VITE_API_URL="http://localhost:8000/api/v1"
+```
+
+## Execução
+
+Na raiz `frontend/`:
+
+```powershell
+npm install
+npm run dev
+```
+
+A aplicação fica disponível em `http://localhost:5173`.
+
+## Validação
+
+```powershell
+npm run check
+```
+
+## Fluxos disponíveis
+
+- registro de usuário;
+- login por e-mail e senha;
+- persistência local da sessão;
+- renovação automática do access token;
+- validação da sessão por `GET /auth/me`;
+- rotas públicas e protegidas;
+- logout;
+- gestão de projetos;
+- lista paginada de tarefas;
+- criação, edição, exclusão e atualização de status de tarefas;
+- filtros por status, prioridade e busca;
+- prazo com conversão entre horário local e UTC;
+- tags com autocomplete, criação de novos nomes e exibição na lista e no kanban;
+- toggle entre lista e kanban;
+- carregamento completo das páginas no quadro;
+- drag-and-drop de status com atualização otimista e rollback;
+- anexos autenticados com upload, listagem, download e exclusão;
+- consulta de anexos preservada em projetos arquivados, sem permitir alterações.
+
+O armazenamento em `localStorage` é um trade-off consciente do case. Para um
+produto real, a evolução recomendada é adotar cookies HttpOnly e proteção CSRF.
+
+O comando `npm run check` executa ESLint, TypeScript, Vitest em um único
+worker e o build de produção. A configuração serial reduz instabilidades de
+workers observadas no Windows sem alterar o comportamento da aplicação.
+~~~~
+
+### `frontend/package.json`
+
+~~~~json
+{
+  "name": "taskly-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run --pool=threads --no-file-parallelism --reporter=verbose",
+    "check": "npm run lint && tsc --noEmit && npm run test:ci && npm run build"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@hookform/resolvers": "^5.2.1",
+    "@tanstack/react-query": "^5.101.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-hook-form": "^7.82.0",
+    "react-router-dom": "^7.18.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "jsdom": "^27.2.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.48.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
+~~~~
+
+### `frontend/src/features/auth/pages/RegisterPage.test.tsx`
+
+~~~~tsx
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { describe, expect, it, vi } from 'vitest'
+import { AuthProvider } from '../AuthProvider'
+import { RegisterPage } from './RegisterPage'
+
+function renderRegisterPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/register']}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/app" element={<h1>Projetos</h1>} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+describe('RegisterPage', () => {
+  it('rejects different passwords without sending a request', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch')
+    renderRegisterPage()
+
+    fireEvent.change(screen.getByLabelText('Nome'), {
+      target: { value: 'Ana Silva' },
+    })
+    fireEvent.change(screen.getByLabelText('E-mail'), {
+      target: { value: 'ana@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Senha'), {
+      target: { value: 'StrongPassword123' },
+    })
+    fireEvent.change(screen.getByLabelText('Confirmar senha'), {
+      target: { value: 'DifferentPassword123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+    expect(
+      await screen.findByText('As senhas precisam ser iguais.'),
+    ).toBeVisible()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('registers, authenticates and opens the protected application', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'user-1',
+            name: 'Ana Silva',
+            email: 'ana@example.com',
+            is_active: true,
+            created_at: '2026-08-01T12:00:00Z',
+            updated_at: '2026-08-01T12:00:00Z',
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            token_type: 'bearer',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            user: {
+              id: 'user-1',
+              name: 'Ana Silva',
+              email: 'ana@example.com',
+              is_active: true,
+              created_at: '2026-08-01T12:00:00Z',
+              updated_at: '2026-08-01T12:00:00Z',
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+
+    renderRegisterPage()
+
+    fireEvent.change(screen.getByLabelText('Nome'), {
+      target: { value: 'Ana Silva' },
+    })
+    fireEvent.change(screen.getByLabelText('E-mail'), {
+      target: { value: 'ana@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Senha'), {
+      target: { value: 'StrongPassword123' },
+    })
+    fireEvent.change(screen.getByLabelText('Confirmar senha'), {
+      target: { value: 'StrongPassword123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Projetos' }),
+    ).toBeVisible()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    expect(window.localStorage.getItem('taskly.auth.tokens')).toContain(
+      'refresh-token',
+    )
+  })
+})
+~~~~
+
+### `frontend/src/features/tasks/components/KanbanBoard.test.tsx`
+
+~~~~tsx
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import type { Task } from '../types'
+import { KanbanBoard } from './KanbanBoard'
+
+function taskFixture(): Task {
+  return {
+    id: 'task-1',
+    project_id: 'project-1',
+    title: 'Revisar quadro',
+    short_description: 'Validar rolagem e modo somente leitura.',
+    description: null,
+    status: 'todo',
+    priority: 'medium',
+    due_at: null,
+    tags: [],
+    attachments: [],
+    created_at: '2026-08-01T12:00:00Z',
+    updated_at: '2026-08-01T12:00:00Z',
+  }
+}
+
+function renderBoard(isReadOnly = false) {
+  return render(
+    <KanbanBoard
+      tasks={[taskFixture()]}
+      isBusy={false}
+      isReadOnly={isReadOnly}
+      onEdit={vi.fn()}
+      onDelete={vi.fn()}
+      onAttachments={vi.fn()}
+      onStatusChange={vi.fn()}
+    />,
+  )
+}
+
+describe('KanbanBoard', () => {
+  it('synchronizes the top scrollbar with the board viewport', () => {
+    renderBoard()
+
+    const topScroll = screen.getByRole('region', {
+      name: 'Rolagem horizontal do quadro kanban',
+    })
+    const boardScroll = screen.getByLabelText('Quadro kanban de tarefas')
+
+    topScroll.scrollLeft = 180
+    fireEvent.scroll(topScroll)
+    expect(boardScroll.scrollLeft).toBe(180)
+
+    boardScroll.scrollLeft = 45
+    fireEvent.scroll(boardScroll)
+    expect(topScroll.scrollLeft).toBe(45)
+  })
+
+  it('keeps reading attachments available in archived projects', () => {
+    renderBoard(true)
+
+    expect(
+      screen.getByRole('button', { name: 'Arrastar tarefa Revisar quadro' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('combobox', {
+        name: 'Mover Revisar quadro para outra coluna',
+      }),
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Anexos' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Editar' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Excluir' })).toBeDisabled()
+  })
+})
+~~~~
+
+### `scripts/validate.ps1`
+
+~~~~powershell
+param(
+    [switch]$InstallDependencies
+)
+
+$ErrorActionPreference = "Stop"
+$RepositoryRoot = Split-Path -Parent $PSScriptRoot
+
+Write-Host "Validando backend..." -ForegroundColor Cyan
+Push-Location (Join-Path $RepositoryRoot "backend")
+try {
+    if ($InstallDependencies) {
+        python -m pip install -e ".[dev]"
+    }
+
+    python -m ruff check .
+    python -m ruff format . --check
+    python -m pytest --cov=app --cov-report=term-missing
+}
+finally {
+    Pop-Location
+}
+
+Write-Host "Validando frontend..." -ForegroundColor Cyan
+Push-Location (Join-Path $RepositoryRoot "frontend")
+try {
+    if ($InstallDependencies) {
+        npm ci
+    }
+
+    npm run check
+}
+finally {
+    Pop-Location
+}
+
+Write-Host "Validação concluída sem erros." -ForegroundColor Green
+~~~~
+
+### `scripts/validate.sh`
+
+~~~~bash
+#!/usr/bin/env sh
+set -eu
+
+REPOSITORY_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+if [ "${INSTALL_DEPENDENCIES:-0}" = "1" ]; then
+  (
+    cd "$REPOSITORY_ROOT/backend"
+    python -m pip install -e ".[dev]"
+  )
+  (
+    cd "$REPOSITORY_ROOT/frontend"
+    npm ci
+  )
+fi
+
+(
+  cd "$REPOSITORY_ROOT/backend"
+  python -m ruff check .
+  python -m ruff format . --check
+  python -m pytest --cov=app --cov-report=term-missing
+)
+
+(
+  cd "$REPOSITORY_ROOT/frontend"
+  npm run check
+)
+
+printf '%s\n' "Validação concluída sem erros."
+~~~~
+
+### `docs/VALIDATION.md`
+
+~~~~markdown
+# Validação do Taskly
+
+## Objetivo
+
+Centralizar os comandos, evidências e critérios de aceite usados antes do
+deploy. Um item somente deve ser marcado como aprovado depois de sua execução
+real no ambiente do desenvolvedor ou na CI.
+
+## Comando consolidado
+
+Na raiz do repositório, em PowerShell:
+
+```powershell
+.\scripts\validate.ps1
+```
+
+A primeira instalação ou uma reinstalação controlada pode ser feita com:
+
+```powershell
+.\scripts\validate.ps1 -InstallDependencies
+```
+
+## Backend
+
+```powershell
+cd backend
+alembic heads
+alembic current
+alembic upgrade head
+python -m ruff check .
+python -m ruff format . --check
+python -m pytest --cov=app --cov-report=term-missing
+```
+
+Critérios de aceite:
+
+- uma única head Alembic: `0004_add_attachments`;
+- migrations aplicáveis em banco PostgreSQL vazio;
+- schema contém usuários, projetos, tarefas, tags, associação e anexos;
+- enums persistem os valores públicos minúsculos;
+- ownership retorna `404` para recursos de outra conta;
+- projetos arquivados permanecem consultáveis e bloqueiam mutações;
+- arquivos físicos são removidos junto com anexos, tarefas e projetos;
+- Ruff e pytest finalizam sem erro.
+
+## Frontend
+
+```powershell
+cd frontend
+npm ci
+npm run check
+```
+
+Critérios de aceite:
+
+- ESLint sem erro;
+- TypeScript sem erro;
+- todos os testes Vitest aprovados;
+- build de produção concluído;
+- cadastro, login, refresh e logout funcionais;
+- projetos e tarefas preservam as alterações após recarregar;
+- kanban carrega todas as páginas e restaura o card após falha da API;
+- barra superior movimenta horizontalmente o quadro em largura reduzida;
+- anexos podem ser enviados, baixados e excluídos em projeto ativo;
+- projeto arquivado permite consulta e download, mas não mutações.
+
+## Evidências disponíveis até a preparação da Etapa 10
+
+O desenvolvedor apresentou uma execução em que:
+
+- ESLint foi concluído sem erro;
+- `tsc --noEmit` foi concluído sem erro;
+- o build Vite foi concluído;
+- 24 de 25 testes frontend foram aprovados;
+- a falha restante foi isolada no mock de conteúdo binário do `jsdom`;
+- o mock foi corrigido para usar corpo textual convertido por `response.blob()`.
+
+A execução integral posterior à correção ainda deve ser registrada com a saída
+real. Este documento não presume aprovação sem essa evidência.
+
+## Auditoria de dependências
+
+A instalação informou duas vulnerabilidades de severidade alta. Antes do
+deploy, execute:
+
+```powershell
+npm audit
+npm audit --omit=dev
+npm audit fix --dry-run
+```
+
+Não use `npm audit fix --force` automaticamente. Classifique se a dependência
+afeta o bundle de produção, a ferramenta de desenvolvimento ou um caminho não
+alcançável e registre a decisão no relatório final.
+
+## Validação manual de regressão
+
+1. Criar conta e confirmar redirecionamento para `/app`.
+2. Atualizar a página e confirmar persistência da sessão.
+3. Sair, entrar novamente e testar credenciais inválidas.
+4. Criar, editar, arquivar, restaurar e excluir projeto.
+5. Criar tarefa com prazo, tags e descrições.
+6. Alterar status na lista e pelo kanban.
+7. Desligar a API, mover um card e confirmar rollback.
+8. Testar a barra horizontal superior em largura reduzida.
+9. Enviar imagem e PDF, baixar e excluir os arquivos.
+10. Arquivar o projeto e confirmar o modo somente leitura.
+11. Inspecionar Network e Local Storage e confirmar que senhas não são
+    persistidas.
+12. Reduzir temporariamente a validade do access token e confirmar o refresh.
+~~~~
+
+### `docs/AI_USAGE.md`
+
+~~~~markdown
 # Uso de IA no desenvolvimento do Taskly
 
 ## Princípios de registro
@@ -1006,3 +2055,193 @@ declarados como aprovados nesta preparação.
 A Etapa 10 adiciona proteção contra divergência de migrations, amplia o fluxo
 integrado, cobre cadastro e regressões do kanban, padroniza a validação local e
 fortalece a CI. A conclusão depende da execução real de todos os comandos.
+~~~~
+
+### `docs/CURRENT_STATE.md`
+
+~~~~markdown
+# Estado atual
+
+## Concluído
+
+- Backend obrigatório implementado com migrations até `0004_add_attachments`.
+- Frontend com autenticação, projetos, lista, kanban, tags e anexos implementado.
+- Correções locais de Vitest, cache otimista, lint, Blob e rolagem incorporadas.
+- Testes de integridade Alembic e schema preparados.
+- Fluxo integrado do backend ampliado para tags, anexos e arquivamento.
+- Testes de cadastro e regressões de usabilidade do kanban preparados.
+- Scripts de validação local e comando `npm run check` adicionados.
+- CI ajustada para cobertura do backend, `npm ci` e validação consolidada.
+- Matriz central em `docs/VALIDATION.md` criada.
+
+## Em desenvolvimento
+
+- Aplicação da Etapa 10 no repositório do desenvolvedor.
+- Execução real de Ruff, pytest, cobertura, ESLint, TypeScript, Vitest e build.
+- Análise das duas vulnerabilidades informadas por `npm audit`.
+
+## Pendente
+
+- Registrar as saídas integrais da Etapa 10 em `AI_USAGE.md` e `VALIDATION.md`.
+- Corrigir eventuais regressões encontradas na validação completa.
+- Consolidar Docker fullstack e deploy na Etapa 11.
+- Finalizar README, SPEC, arquitetura e roteiro do vídeo na Etapa 12.
+
+## Último commit
+
+- Etapa 10 ainda não commitada.
+- Mensagem planejada: `test: amplia cobertura e estabiliza validações`
+~~~~
+
+### `docs/prompts/prompt-etapa-10-testes.md`
+
+~~~~markdown
+# Prompt da Etapa 10 — Testes e estabilização
+
+## Finalidade
+
+Registrar o uso de IA como apoio para localizar lacunas de cobertura, organizar
+cenários de regressão e revisar a automação de validação, sem atribuir à
+ferramenta a execução ou a aprovação dos testes.
+
+## Contexto fornecido pelo desenvolvedor
+
+- Backend e frontend obrigatórios já estavam implementados.
+- Ruff, ESLint, TypeScript, pytest, Vitest e build são validações obrigatórias.
+- O ambiente Windows apresentou instabilidade no pool `forks` do Vitest.
+- O teste otimista do kanban exigiu retenção explícita do cache.
+- A rolagem horizontal inferior do kanban foi substituída por controle superior.
+- O teste de Blob revelou incompatibilidades entre implementações de `jsdom`.
+- A instalação npm informou duas vulnerabilidades de severidade alta.
+
+## Solicitação feita à IA
+
+> Revise a suíte atual do Taskly e proponha uma etapa de estabilização sem criar
+> novas funcionalidades. Amplie a cobertura dos fluxos obrigatórios, valide a
+> integridade das migrations e do schema, consolide comandos locais e de CI,
+> preserve as correções já feitas no Windows e documente somente resultados
+> realmente apresentados pelo desenvolvedor.
+
+## Resultado utilizado pelo desenvolvedor
+
+A análise serviu para priorizar:
+
+- testes explícitos da head Alembic, relações, constraints e enums;
+- ampliação do fluxo integrado do backend;
+- cobertura do cadastro no frontend;
+- regressão da barra superior e do modo somente leitura do kanban;
+- comando único de validação local;
+- uso de `npm ci` na CI;
+- relatório de cobertura sem impor limite não medido;
+- tratamento responsável do `npm audit`.
+
+As alterações devem ser revisadas, executadas e aceitas pelo desenvolvedor.
+~~~~
+
+## 7. Validação
+
+### Preparação local
+
+Na raiz do repositório:
+
+```powershell
+.\scripts\validate.ps1 -InstallDependencies
+```
+
+Nas execuções seguintes:
+
+```powershell
+.\scripts\validate.ps1
+```
+
+### Backend isolado
+
+```powershell
+cd backend
+alembic heads
+alembic current
+alembic upgrade head
+python -m ruff check .
+python -m ruff format . --check
+python -m pytest --cov=app --cov-report=term-missing
+```
+
+### Frontend isolado
+
+```powershell
+cd frontend
+npm ci
+npm run check
+```
+
+### Auditoria
+
+```powershell
+npm audit
+npm audit --omit=dev
+npm audit fix --dry-run
+```
+
+Não executar `npm audit fix --force` sem revisar as mudanças propostas.
+
+## 8. Commit
+
+```powershell
+git status
+git add backend/app/tests
+git add frontend/src/features/auth/pages/RegisterPage.test.tsx
+git add frontend/src/features/tasks/components/KanbanBoard.test.tsx
+git add frontend/package.json frontend/package-lock.json
+git add .github/workflows/ci.yml scripts
+git add README.md frontend/README.md
+git add docs/AI_USAGE.md docs/CURRENT_STATE.md docs/VALIDATION.md
+git add docs/etapas/etapa-10-testes.md
+git add docs/prompts/prompt-etapa-10-testes.md
+git diff --cached
+git commit -m "test: amplia cobertura e estabiliza validações"
+git push origin main
+```
+
+## 9. Problemas comuns
+
+### `npm ci` informa lockfile ausente ou incompatível
+
+Execute `npm install` uma vez, revise o `package-lock.json`, inclua-o no commit e
+repita `npm ci`.
+
+### Testes backend não encontram `TEST_DATABASE_URL`
+
+Confirme `backend/.env`, o PostgreSQL e a existência do banco exclusivo de
+testes. Nunca aponte os testes para o banco de desenvolvimento.
+
+### Teste de kanban falha por worker
+
+Confirme `pool: 'threads'`, `fileParallelism: false` e `maxWorkers: 1` em
+`vite.config.ts`.
+
+### `npm audit` continua indicando vulnerabilidade
+
+Classifique a dependência, verifique se ela chega ao bundle de produção e
+registre a decisão. A existência do alerta não autoriza atualização forçada.
+
+## 10. Checklist
+
+- [x] Testes de migrations e schema preparados.
+- [x] Fluxo integrado do backend ampliado.
+- [x] Cadastro frontend coberto.
+- [x] Barra superior do kanban protegida por teste.
+- [x] Modo somente leitura protegido por teste.
+- [x] Comando consolidado local criado.
+- [x] CI estabilizada.
+- [x] Matriz de validação criada.
+- [ ] Saída real completa do backend registrada.
+- [ ] Saída real completa do frontend registrada.
+- [ ] Auditoria de dependências classificada.
+- [ ] Commit executado pelo desenvolvedor.
+
+## 11. Próxima etapa
+
+**Etapa 11 — Docker fullstack e deploy.**
+
+Ela deverá criar a imagem de produção do frontend, consolidar o Compose, definir
+variáveis e persistência de anexos, validar health checks e documentar o deploy.
