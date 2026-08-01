@@ -1,110 +1,102 @@
 # Validação do Taskly
 
-## Objetivo
+Este documento registra somente resultados observados pelo desenvolvedor. Comandos sugeridos, mas ainda não executados na rodada final, permanecem marcados como pendentes.
 
-Centralizar os comandos, evidências e critérios de aceite usados antes do
-deploy. Um item somente deve ser marcado como aprovado depois de sua execução
-real no ambiente do desenvolvedor ou na CI.
+## Evidências já observadas
 
-## Comando consolidado
+### Frontend
 
-Na raiz do repositório, em PowerShell:
+- `npm run lint`: executado sem erro nas saídas apresentadas.
+- `npx tsc --noEmit`: executado sem erro nas saídas apresentadas.
+- `npm run build`: concluído com sucesso; o Vite gerou o bundle de produção.
+- `npx vitest run`: executado em múltiplas rodadas.
+- Foram observados e corrigidos problemas específicos em workers do Vitest, teste de login, rollback de cache e leitura de Blob.
+- A última saída completa de toda a suíte após a correção final do Blob ainda deve ser registrada.
+
+### Validação manual
+
+- A interface foi testada em largura reduzida no Opera.
+- A barra horizontal original no final do kanban foi considerada pouco eficiente.
+- O desenvolvedor substituiu o comportamento por uma barra superior sincronizada.
+
+### Backend
+
+- As migrations, testes de ownership e fluxo integrado foram preparados e utilizados ao longo das etapas.
+- A última saída consolidada de Ruff, Alembic e pytest deve ser registrada antes da submissão.
+
+## Validação final recomendada
+
+### Backend
+
+Na raiz `backend/`:
 
 ```powershell
-.\scripts\validate.ps1
-```
-
-A primeira instalação ou uma reinstalação controlada pode ser feita com:
-
-```powershell
-.\scripts\validate.ps1 -InstallDependencies
-```
-
-## Backend
-
-```powershell
-cd backend
 alembic heads
 alembic current
 alembic upgrade head
+
 python -m ruff check .
 python -m ruff format . --check
 python -m pytest --cov=app --cov-report=term-missing
 ```
 
-Critérios de aceite:
+Head esperado:
 
-- uma única head Alembic: `0004_add_attachments`;
-- migrations aplicáveis em banco PostgreSQL vazio;
-- schema contém usuários, projetos, tarefas, tags, associação e anexos;
-- enums persistem os valores públicos minúsculos;
-- ownership retorna `404` para recursos de outra conta;
-- projetos arquivados permanecem consultáveis e bloqueiam mutações;
-- arquivos físicos são removidos junto com anexos, tarefas e projetos;
-- Ruff e pytest finalizam sem erro.
+```text
+0004_add_attachments
+```
 
-## Frontend
+### Frontend
+
+Na raiz `frontend/`:
 
 ```powershell
-cd frontend
 npm ci
 npm run check
-```
-
-Critérios de aceite:
-
-- ESLint sem erro;
-- TypeScript sem erro;
-- todos os testes Vitest aprovados;
-- build de produção concluído;
-- cadastro, login, refresh e logout funcionais;
-- projetos e tarefas preservam as alterações após recarregar;
-- kanban carrega todas as páginas e restaura o card após falha da API;
-- barra superior movimenta horizontalmente o quadro em largura reduzida;
-- anexos podem ser enviados, baixados e excluídos em projeto ativo;
-- projeto arquivado permite consulta e download, mas não mutações.
-
-## Evidências disponíveis até a preparação da Etapa 10
-
-O desenvolvedor apresentou uma execução em que:
-
-- ESLint foi concluído sem erro;
-- `tsc --noEmit` foi concluído sem erro;
-- o build Vite foi concluído;
-- 24 de 25 testes frontend foram aprovados;
-- a falha restante foi isolada no mock de conteúdo binário do `jsdom`;
-- o mock foi corrigido para usar corpo textual convertido por `response.blob()`.
-
-A execução integral posterior à correção ainda deve ser registrada com a saída
-real. Este documento não presume aprovação sem essa evidência.
-
-## Auditoria de dependências
-
-A instalação informou duas vulnerabilidades de severidade alta. Antes do
-deploy, execute:
-
-```powershell
 npm audit
 npm audit --omit=dev
-npm audit fix --dry-run
 ```
 
-Não use `npm audit fix --force` automaticamente. Classifique se a dependência
-afeta o bundle de produção, a ferramenta de desenvolvimento ou um caminho não
-alcançável e registre a decisão no relatório final.
+Não executar `npm audit fix --force` sem revisar a alteração de versões.
 
-## Validação manual de regressão
+### Docker fullstack
 
-1. Criar conta e confirmar redirecionamento para `/app`.
-2. Atualizar a página e confirmar persistência da sessão.
-3. Sair, entrar novamente e testar credenciais inválidas.
-4. Criar, editar, arquivar, restaurar e excluir projeto.
-5. Criar tarefa com prazo, tags e descrições.
-6. Alterar status na lista e pelo kanban.
-7. Desligar a API, mover um card e confirmar rollback.
-8. Testar a barra horizontal superior em largura reduzida.
-9. Enviar imagem e PDF, baixar e excluir os arquivos.
-10. Arquivar o projeto e confirmar o modo somente leitura.
-11. Inspecionar Network e Local Storage e confirmar que senhas não são
-    persistidas.
-12. Reduzir temporariamente a validade do access token e confirmar o refresh.
+Na raiz do repositório:
+
+```powershell
+Copy-Item .env.example .env
+
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Verificações manuais:
+
+1. acessar `http://localhost:5173`;
+2. cadastrar e autenticar um usuário;
+3. criar projeto e tarefa;
+4. mover a tarefa no kanban;
+5. enviar e baixar um anexo;
+6. reiniciar os containers;
+7. confirmar persistência do banco e do anexo;
+8. conferir `http://localhost:8000/docs`;
+9. encerrar com `docker compose down` sem `-v`.
+
+Use `docker compose down -v` somente quando quiser remover dados e anexos locais.
+
+## Matriz final
+
+| Área | Validação | Estado |
+|---|---|---|
+| Backend lint | Ruff check | Pendente de saída final |
+| Backend format | Ruff format check | Pendente de saída final |
+| Backend testes | pytest e cobertura | Pendente de saída final |
+| Migrations | upgrade até `0004` | Pendente de saída final |
+| Frontend lint | ESLint | Evidência observada; repetir na rodada final |
+| Frontend tipos | TypeScript | Evidência observada; repetir na rodada final |
+| Frontend testes | Vitest | Correções aplicadas; rodada final pendente |
+| Frontend build | Vite build | Evidência observada; repetir na rodada final |
+| Docker Compose | build, health checks e fluxo manual | Pendente |
+| Auditoria npm | classificação dos alertas | Pendente |

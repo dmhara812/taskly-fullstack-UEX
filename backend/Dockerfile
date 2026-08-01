@@ -5,20 +5,20 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Dependências do sistema.
-# gcc/libpq-dev ajudam em dependências Python que possam compilar extensões.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md ./
+COPY app ./app
 
+# A imagem de execução recebe apenas dependências de runtime. Ruff, pytest e
+# outras ferramentas continuam disponíveis no ambiente local e na CI.
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -e ".[dev]"
+    && pip install --no-cache-dir .
 
 COPY alembic.ini ./
 COPY alembic ./alembic
-COPY app ./app
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chmod +x ./docker-entrypoint.sh

@@ -2,30 +2,39 @@
 
 ## Concluído
 
-- Backend obrigatório implementado com migrations até `0004_add_attachments`.
-- Frontend com autenticação, projetos, lista, kanban, tags e anexos implementado.
-- Correções locais de Vitest, cache otimista, lint, Blob e rolagem incorporadas.
-- Testes de integridade Alembic e schema preparados.
-- Fluxo integrado do backend ampliado para tags, anexos e arquivamento.
-- Testes de cadastro e regressões de usabilidade do kanban preparados.
-- Scripts de validação local e comando `npm run check` adicionados.
-- CI ajustada para cobertura do backend, `npm ci` e validação consolidada.
-- Matriz central em `docs/VALIDATION.md` criada.
+- Backend FastAPI organizado em camadas.
+- Autenticação com access token, refresh token e sessão persistente.
+- Projetos com ownership, busca, paginação, arquivamento e restauração.
+- Tarefas com quatro status, prioridade, descrições e prazo UTC.
+- Tags relacionais por usuário.
+- Anexos com storage desacoplado, validação e ownership.
+- Frontend React/Vite/TypeScript.
+- Lista e kanban com drag-and-drop persistido e rollback.
+- Gestão visual de tags e anexos.
+- Migrations Alembic reproduzíveis.
+- Testes backend e frontend ampliados.
+- Scripts de validação local e CI.
+- Docker Compose fullstack com volumes para PostgreSQL e anexos.
+- Documentação consolidada em `SPEC`, `ARCHITECTURE`, `DECISIONS`, `AI_USAGE` e `VALIDATION`.
+- Decisão de não realizar deploy público registrada.
 
 ## Em desenvolvimento
 
-- Aplicação da Etapa 10 no repositório do desenvolvedor.
-- Execução real de Ruff, pytest, cobertura, ESLint, TypeScript, Vitest e build.
-- Análise das duas vulnerabilidades informadas por `npm audit`.
+- Execução final consolidada dos comandos de validação.
+- Teste manual do Docker Compose fullstack.
+- Preparação do README final e do roteiro de apresentação.
+- Revisão da documentação que será mantida na submissão pública.
 
 ## Pendente
 
-- Registrar as saídas integrais da Etapa 10 em `AI_USAGE.md` e `VALIDATION.md`.
-- Corrigir eventuais regressões encontradas na validação completa.
-- Consolidar Docker fullstack e deploy na Etapa 11.
-- Finalizar README, SPEC, arquitetura e roteiro do vídeo na Etapa 12.
+- Registrar a última saída completa do backend em `VALIDATION.md`.
+- Registrar a última saída completa do frontend em `VALIDATION.md`.
+- Classificar o resultado final de `npm audit`.
+- Validar upload e download após reinício dos containers.
+- Gravar o vídeo de apresentação.
+- Decidir, antes da submissão, se `docs/etapas/` será removido da árvore pública após cópia local.
 
 ## Último commit
 
-- Etapa 10 ainda não commitada.
-- Mensagem planejada: `test: amplia cobertura e estabiliza validações`
+- Etapa 11 ainda não commitada.
+- Mensagem planejada: `chore: consolida execução local e documentação da entrega`

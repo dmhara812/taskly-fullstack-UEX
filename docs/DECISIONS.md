@@ -426,3 +426,36 @@ O contrato simplifica o formulário, impede associação direta por ID de outra 
 - A resposta retorna objetos com ID e nome para renderização e cache.
 - Tags sem tarefas permanecem disponíveis para reutilização e autocomplete.
 - A exclusão administrativa de tags fica fora do escopo desta etapa.
+
+---
+
+## DEC-015 — Priorizar entrega local reproduzível em vez de deploy público
+
+**Status:** aprovada
+**Data:** 01/08/2026
+
+### Contexto
+
+O fluxo funcional obrigatório está implementado e o prazo restante deve ser usado para estabilidade, documentação e apresentação. Um deploy público exigiria decidir e configurar banco gerenciado, segredos, CORS, migrations e persistência durável dos anexos.
+
+### Alternativas consideradas
+
+1. Publicar frontend, API e PostgreSQL em serviços externos nas horas finais.
+2. Publicar apenas o frontend e manter a API local.
+3. Consolidar uma execução fullstack local por Docker Compose e registrar o deploy como evolução futura.
+
+### Decisão do desenvolvedor
+
+Adotar a terceira alternativa. A entrega final será executável localmente por Docker Compose, com frontend, API, PostgreSQL, migrations e volumes persistentes. Não haverá URL pública nesta versão.
+
+### Justificativa
+
+A decisão prioriza os critérios de maior peso: funcionalidade, arquitetura, testes, documentação e comunicação. Também evita apresentar um ambiente parcialmente funcional ou perder a persistência dos anexos em filesystem efêmero.
+
+### Consequências
+
+- O README deve explicar a execução local completa.
+- O vídeo demonstrará o produto rodando localmente.
+- O storage local permanecerá persistente por volume Docker.
+- Um deploy futuro deverá usar PostgreSQL gerenciado, armazenamento de objetos, segredos e observabilidade.
+- A ausência de deploy público será documentada como priorização técnica, não como requisito esquecido.

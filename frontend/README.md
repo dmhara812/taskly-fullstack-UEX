@@ -69,3 +69,9 @@ produto real, a evolução recomendada é adotar cookies HttpOnly e proteção C
 O comando `npm run check` executa ESLint, TypeScript, Vitest em um único
 worker e o build de produção. A configuração serial reduz instabilidades de
 workers observadas no Windows sem alterar o comportamento da aplicação.
+
+## Imagem Docker
+
+O `Dockerfile` usa build multi-stage e publica os arquivos estáticos com Nginx.
+No Docker Compose, `VITE_API_URL` é definido como `/api/v1`, e o Nginx encaminha
+as chamadas para o serviço `api`, mantendo a aplicação na mesma origem.

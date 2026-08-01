@@ -1,4 +1,18 @@
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    container_name: taskly-frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   api:
     build:
       context: ./backend
@@ -7,42 +21,56 @@ services:
     environment:
       APP_NAME: "Taskly API"
       APP_ENV: "docker"
-      APP_DEBUG: "true"
+      APP_DEBUG: "false"
       APP_VERSION: "0.1.0"
-      DATABASE_URL: "postgresql+psycopg://postgres:postgres@db:5432/projects_api"
-      TEST_DATABASE_URL: "postgresql+psycopg://postgres:postgres@db:5432/projects_api_test"
-      JWT_SECRET_KEY: "change-this-secret-key"
+      DATABASE_URL: >-
+        postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-projects_api}
+      JWT_SECRET_KEY: "${TASKLY_JWT_SECRET_KEY:-change-this-local-secret}"
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      CORS_ORIGINS: "http://localhost:5173,http://localhost:8000"
+      CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-5173},http://localhost:${API_PORT:-8000}"
       ATTACHMENT_STORAGE_DIR: "storage/attachments"
       ATTACHMENT_MAX_SIZE_BYTES: "5242880"
       ATTACHMENT_ALLOWED_CONTENT_TYPES: "image/jpeg,image/png,image/webp,application/pdf"
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./backend:/app
       - attachment_data:/app/storage/attachments
-    command: []
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
 
   db:
     image: postgres:16-alpine
     container_name: taskly-db
     environment:
-      POSTGRES_DB: projects_api
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: "${POSTGRES_DB:-projects_api}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d projects_api"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-projects_api}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10

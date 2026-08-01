@@ -1,85 +1,144 @@
 # Taskly Fullstack
 
-Repositório do case técnico Taskly, organizado como monorepo para manter backend, frontend e documentação no mesmo histórico Git.
+Aplicação de gestão de projetos e tarefas desenvolvida como case técnico, com backend FastAPI, frontend React/TypeScript, PostgreSQL, migrations, testes e execução fullstack por Docker Compose.
 
-## Estrutura atual
+## Funcionalidades
+
+- cadastro, login, refresh de sessão e logout;
+- projetos ativos e arquivados;
+- tarefas com descrições, prioridade, prazo, tags e anexos;
+- visualização em lista e kanban;
+- drag-and-drop com persistência e rollback;
+- ownership em projetos, tarefas, tags e anexos;
+- upload e download autenticado de imagens e PDFs;
+- modo somente leitura para projetos arquivados.
+
+## Estrutura
 
 ```text
 taskly-fullstack-UEX/
 ├── backend/          # FastAPI, SQLAlchemy, Alembic e pytest
-├── frontend/         # React, Vite, TypeScript e produto web
-├── docs/             # etapas, decisões, estado atual e uso de IA
-├── .github/          # CI do repositório
+├── frontend/         # React, Vite, TypeScript e Vitest
+├── docs/             # especificação, arquitetura, decisões e validação
+├── scripts/          # validação local
 ├── docker-compose.yml
 └── README.md
 ```
 
-## Diretórios de execução
+## Requisitos
 
-### Raiz do repositório
+Para executar tudo por Docker:
 
-Use para Git e Docker Compose:
+- Docker Desktop com Docker Compose.
+
+Para desenvolvimento local separado:
+
+- Python 3.12+;
+- Node.js 20.19+;
+- PostgreSQL 16.
+
+## Execução fullstack com Docker
+
+Na raiz do repositório:
 
 ```powershell
-cd "C:\Users\Daniel Hara\Documents\Projetos\taskly-fullstack-UEX"
-git status
+Copy-Item .env.example .env
+```
+
+Revise `TASKLY_JWT_SECRET_KEY` no arquivo `.env` e execute:
+
+```powershell
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Acessos:
+
+- aplicação: `http://localhost:5173`;
+- Swagger: `http://localhost:8000/docs`;
+- health check da API: `http://localhost:8000/api/v1/health`.
+
+As migrations são executadas automaticamente pelo entrypoint da API.
+
+Os volumes `postgres_data` e `attachment_data` preservam banco e anexos entre reinícios:
+
+```powershell
+docker compose down
 docker compose up -d
 ```
 
-### Raiz do backend
+Para apagar os dados locais:
 
-Use para Alembic, Ruff e pytest:
+```powershell
+docker compose down -v
+```
+
+## Desenvolvimento separado
+
+### Backend
 
 ```powershell
 cd backend
+..\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
 alembic upgrade head
-ruff check .
-ruff format . --check
-python -m pytest
+uvicorn app.main:app --reload
 ```
 
-### Raiz do frontend
-
-Use para npm, TypeScript, ESLint e Vitest:
+### Frontend
 
 ```powershell
 cd frontend
+Copy-Item .env.example .env
 npm install
 npm run dev
-npm run lint
-npx tsc --noEmit
-npm run test
 ```
 
-## Estado funcional
+## Validação
 
-O backend possui autenticação, refresh token, projetos, tarefas, ownership, prazos em UTC, tags relacionais e anexos.
-
-O frontend possui autenticação persistente, gestão de projetos, lista e kanban de tarefas, drag-and-drop persistido, autocomplete de tags e gestão autenticada de anexos com upload, download e exclusão.
-
-
-## Validação consolidada
-
-Com as dependências já instaladas, execute na raiz do repositório:
+Na raiz do repositório:
 
 ```powershell
 .\scripts\validate.ps1
 ```
 
-Para instalar novamente as dependências bloqueadas antes da validação:
+Ou separadamente:
 
 ```powershell
-.\scripts\validate.ps1 -InstallDependencies
+cd backend
+python -m ruff check .
+python -m ruff format . --check
+python -m pytest
+
+cd ..\frontend
+npm run check
 ```
 
-Em Linux ou macOS:
+Os resultados finais devem ser registrados em `docs/VALIDATION.md`.
 
-```bash
-./scripts/validate.sh
-```
+## Documentação
 
-O frontend utiliza `npm ci` na integração contínua. Portanto,
-`frontend/package-lock.json` deve permanecer versionado e sincronizado com o
-`package.json`. O relatório de `npm audit` deve ser analisado antes de qualquer
-uso de `npm audit fix --force`, pois a opção pode introduzir versões
-incompatíveis.
+- [Especificação funcional](docs/SPEC.md)
+- [Arquitetura](docs/ARCHITECTURE.md)
+- [Decisões técnicas](docs/DECISIONS.md)
+- [Uso de IA](docs/AI_USAGE.md)
+- [Validação](docs/VALIDATION.md)
+- [Estado atual](docs/CURRENT_STATE.md)
+- [Organização da documentação](docs/README.md)
+
+## Uso de IA
+
+A IA foi usada como apoio para pesquisa, comparação de alternativas e revisão técnica. As decisões, a integração, as correções, a execução dos testes e a responsabilidade pela entrega pertencem ao desenvolvedor. O histórico de revisão crítica está consolidado em `docs/AI_USAGE.md`.
+
+## Deploy público
+
+A entrega prioriza uma execução local reproduzível e estável. O deploy público não foi incluído porque exigiria uma decisão adicional sobre PostgreSQL gerenciado, segredos e armazenamento durável de anexos.
+
+Como evolução futura, a aplicação pode usar:
+
+- frontend estático publicado separadamente;
+- API containerizada;
+- PostgreSQL gerenciado;
+- storage compatível com S3;
+- observabilidade e testes end-to-end.
