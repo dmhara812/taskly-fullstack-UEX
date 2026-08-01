@@ -2,24 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeAuthTokens } from '../lib/auth-storage'
 import { apiDownload, apiRequest } from './client'
 
-function readBlobAsText(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-
-    reader.addEventListener('load', () => {
-      resolve(String(reader.result ?? ''))
-    })
-
-    reader.addEventListener('error', () => {
-      reject(
-        reader.error ??
-          new Error('Não foi possível ler o conteúdo do Blob no teste.'),
-      )
-    })
-
-    reader.readAsText(blob)
-  })
-}
 
 describe('api client', () => {
   beforeEach(() => {
@@ -76,21 +58,36 @@ describe('api client', () => {
       refreshToken: 'valid-refresh-token',
     })
 
-    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValueOnce(
-      new Response('arquivo', {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-        },
+    // O Blob é criado pelo mesmo ambiente jsdom usado pelo teste.
+    // O Response é simulado somente com o contrato consumido pelo apiDownload,
+    // evitando misturar o Blob nativo do Node com o FileReader do jsdom.
+    const expectedBlob = new Blob(['arquivo'], {
+      type: 'application/pdf',
+    })
+
+    const blobParser = vi.fn().mockResolvedValue(expectedBlob)
+
+    const mockedResponse = {
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        'Content-Type': 'application/pdf',
       }),
-    )
+      blob: blobParser,
+    } as unknown as Response
+
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValueOnce(mockedResponse)
 
     const blob = await apiDownload(
       '/attachments/attachment-1/content',
     )
 
+    expect(blob).toBe(expectedBlob)
     expect(blob.type).toBe('application/pdf')
-    expect(await readBlobAsText(blob)).toBe('arquivo')
+    expect(blob.size).toBe(7)
+    expect(blobParser).toHaveBeenCalledOnce()
 
     const headers = new Headers(
       fetchSpy.mock.calls[0][1]?.headers,

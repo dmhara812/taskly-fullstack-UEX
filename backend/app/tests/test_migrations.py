@@ -40,9 +40,7 @@ def test_migrated_schema_contains_taskly_relations_and_constraints(
 
     assert expected_tables.issubset(set(inspector.get_table_names()))
 
-    task_columns = {
-        column["name"]: column for column in inspector.get_columns("tasks")
-    }
+    task_columns = {column["name"]: column for column in inspector.get_columns("tasks")}
     assert {
         "short_description",
         "description",
