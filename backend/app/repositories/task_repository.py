@@ -41,7 +41,9 @@ class TaskRepository:
     def get_by_id(self, task_id: UUID) -> Task | None:
         """Busca uma tarefa apenas pelo ID para usos internos controlados."""
         statement = (
-            select(Task).options(selectinload(Task.tags)).where(Task.id == task_id)
+            select(Task)
+            .options(selectinload(Task.tags), selectinload(Task.attachments))
+            .where(Task.id == task_id)
         )
 
         return self.db.scalar(statement)
@@ -50,7 +52,7 @@ class TaskRepository:
         """Busca a tarefa somente quando seu projeto pertence ao usuário."""
         statement = (
             select(Task)
-            .options(selectinload(Task.tags))
+            .options(selectinload(Task.tags), selectinload(Task.attachments))
             .join(Project, Task.project_id == Project.id)
             .where(
                 Task.id == task_id,
@@ -76,7 +78,7 @@ class TaskRepository:
 
         statement = (
             select(Task)
-            .options(selectinload(Task.tags))
+            .options(selectinload(Task.tags), selectinload(Task.attachments))
             .join(Project, Task.project_id == Project.id)
             .where(Project.owner_id == owner_id)
         )

@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.dependencies import get_storage_backend
 from app.main import app
+from app.storage import LocalStorageBackend
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 settings = get_settings()
@@ -88,13 +90,26 @@ def db_session() -> Generator[Session, None, None]:
 
 
 @pytest.fixture()
-def client(db_session: Session) -> Generator[TestClient, None, None]:
+def storage_backend(tmp_path: Path) -> LocalStorageBackend:
+    """Isola os bytes de anexos em um diretório temporário por teste."""
+    return LocalStorageBackend(tmp_path / "attachments")
+
+
+@pytest.fixture()
+def client(
+    db_session: Session,
+    storage_backend: LocalStorageBackend,
+) -> Generator[TestClient, None, None]:
     """Substitui a sessão da aplicação pela sessão transacional do teste."""
 
     def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
+    def override_storage_backend() -> LocalStorageBackend:
+        return storage_backend
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_storage_backend] = override_storage_backend
 
     with TestClient(app) as test_client:
         yield test_client

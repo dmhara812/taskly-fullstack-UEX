@@ -26,6 +26,20 @@ class Settings(BaseSettings):
 
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
 
+    attachment_storage_dir: Path = Field(
+        default=Path("storage/attachments"),
+        alias="ATTACHMENT_STORAGE_DIR",
+    )
+    attachment_max_size_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        alias="ATTACHMENT_MAX_SIZE_BYTES",
+        gt=0,
+    )
+    attachment_allowed_content_types: str = Field(
+        default="image/jpeg,image/png,image/webp,application/pdf",
+        alias="ATTACHMENT_ALLOWED_CONTENT_TYPES",
+    )
+
     model_config = SettingsConfigDict(
         # O caminho absoluto evita que a leitura dependa de executar o comando
         # na raiz do repositório ou dentro de `backend/`.
@@ -34,6 +48,22 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @property
+    def attachment_storage_path(self) -> Path:
+        """Resolve caminhos relativos a partir da raiz real do backend."""
+        if self.attachment_storage_dir.is_absolute():
+            return self.attachment_storage_dir
+
+        return BACKEND_ROOT / self.attachment_storage_dir
+
+    @property
+    def attachment_allowed_content_type_set(self) -> set[str]:
+        return {
+            content_type.strip().lower()
+            for content_type in self.attachment_allowed_content_types.split(",")
+            if content_type.strip()
+        }
 
     @property
     def cors_origin_list(self) -> list[str]:

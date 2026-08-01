@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from app.models.task import TaskPriority, TaskStatus
+from app.schemas.attachment import AttachmentResponse
 from app.schemas.tag import TagName, TagResponse, deduplicate_tag_names
 
 
@@ -153,5 +154,6 @@ class TaskResponse(TaskBase):
     project_id: UUID
     status: TaskStatus
     tags: list[TagResponse]
+    attachments: list[AttachmentResponse]
     created_at: datetime
     updated_at: datetime

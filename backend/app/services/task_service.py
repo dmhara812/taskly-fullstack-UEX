@@ -7,19 +7,23 @@ from sqlalchemy.orm import Session
 from app.models.project import ProjectStatus
 from app.models.tag import Tag
 from app.models.task import Task, TaskPriority, TaskStatus
+from app.repositories.attachment_repository import AttachmentRepository
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.tag_repository import TagRepository
 from app.repositories.task_repository import TaskRepository
 from app.schemas.common import PaginatedResponse
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
 from app.services.exceptions import BadRequestError, NotFoundError
+from app.storage import StorageBackend
 
 
 class TaskService:
     """Regras de negócio relacionadas a tarefas."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, storage: StorageBackend) -> None:
         self.repository = TaskRepository(db)
+        self.attachment_repository = AttachmentRepository(db)
+        self.storage = storage
         self.project_repository = ProjectRepository(db)
         self.tag_repository = TagRepository(db)
 
@@ -127,6 +131,13 @@ class TaskService:
         """Remove tarefa própria apenas enquanto o projeto estiver ativo."""
         task = self.get_task_for_owner(task_id=task_id, owner_id=owner_id)
         self._ensure_project_is_active(task=task, owner_id=owner_id)
+
+        attachments = self.attachment_repository.list_by_task_and_owner(
+            task_id=task_id,
+            owner_id=owner_id,
+        )
+        for attachment in attachments:
+            self.storage.delete(attachment.storage_key)
 
         self.repository.delete(task)
 

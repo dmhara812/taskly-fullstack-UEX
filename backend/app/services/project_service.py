@@ -4,17 +4,21 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.project import Project, ProjectStatus
+from app.repositories.attachment_repository import AttachmentRepository
 from app.repositories.project_repository import ProjectRepository
 from app.schemas.common import PaginatedResponse
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.exceptions import NotFoundError
+from app.storage import StorageBackend
 
 
 class ProjectService:
     """Regras de negócio relacionadas a projetos."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, storage: StorageBackend) -> None:
         self.repository = ProjectRepository(db)
+        self.attachment_repository = AttachmentRepository(db)
+        self.storage = storage
 
     def create_project(self, owner_id: UUID, project_data: ProjectCreate) -> Project:
         """Cria um projeto para o usuário autenticado.
@@ -111,5 +115,12 @@ class ProjectService:
             project_id=project_id,
             owner_id=owner_id,
         )
+
+        attachments = self.attachment_repository.list_by_project_and_owner(
+            project_id=project_id,
+            owner_id=owner_id,
+        )
+        for attachment in attachments:
+            self.storage.delete(attachment.storage_key)
 
         self.repository.delete(project)

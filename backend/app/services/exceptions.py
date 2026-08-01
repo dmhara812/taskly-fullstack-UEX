@@ -41,3 +41,24 @@ class BadRequestError(ServiceError):
 
     status_code = 400
     detail = "Bad request"
+
+
+class UnsupportedMediaTypeError(ServiceError):
+    """Erro para anexos com tipo declarado ou assinatura não permitidos."""
+
+    status_code = 415
+    detail = "Unsupported media type"
+
+
+class PayloadTooLargeError(ServiceError):
+    """Erro para arquivos que ultrapassam o limite configurado."""
+
+    status_code = 413
+    detail = "Payload too large"
+
+
+class StorageError(ServiceError):
+    """Erro de infraestrutura ao gravar, ler ou excluir conteúdo físico."""
+
+    status_code = 500
+    detail = "Attachment storage error"

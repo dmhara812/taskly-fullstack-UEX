@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
@@ -5,11 +6,13 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_token_subject
 from app.models.user import User
 from app.services.exceptions import ForbiddenError
 from app.services.user_service import UserService
+from app.storage import LocalStorageBackend, StorageBackend
 
 # tokenUrl informa ao Swagger onde o usuário consegue obter um token.
 # Como nossas rotas terão prefixo /api/v1, o caminho completo fica abaixo.
@@ -41,3 +44,10 @@ def get_current_user(
         raise ForbiddenError("Inactive user")
 
     return user
+
+
+@lru_cache(maxsize=1)
+def get_storage_backend() -> StorageBackend:
+    """Fornece o adapter configurado sem acoplar services ao filesystem."""
+    settings = get_settings()
+    return LocalStorageBackend(settings.attachment_storage_path)

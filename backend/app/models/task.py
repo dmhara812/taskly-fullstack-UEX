@@ -13,6 +13,7 @@ from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.tag import task_tags_table
 
 if TYPE_CHECKING:
+    from app.models.attachment import Attachment
     from app.models.project import Project
     from app.models.tag import Tag
 
@@ -69,6 +70,12 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     project: Mapped[Project] = relationship(back_populates="tasks")
+    attachments: Mapped[list[Attachment]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Attachment.created_at",
+    )
     tags: Mapped[list[Tag]] = relationship(
         secondary=task_tags_table,
         back_populates="tasks",

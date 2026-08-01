@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.routes.attachments import router as attachments_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.projects import router as projects_router
 from app.api.routes.tags import router as tags_router
@@ -17,3 +18,4 @@ api_router.include_router(auth_router)
 api_router.include_router(projects_router)
 api_router.include_router(tasks_router)
 api_router.include_router(tags_router)
+api_router.include_router(attachments_router)
