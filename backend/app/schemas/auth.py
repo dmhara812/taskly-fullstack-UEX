@@ -14,6 +14,15 @@ class LoginRequest(BaseModel):
     )
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(
+        min_length=1,
+        examples=[
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.refresh.token",
+        ],
+    )
+
+
 class TokenResponse(BaseModel):
     access_token: str = Field(
         examples=[

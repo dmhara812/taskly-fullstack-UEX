@@ -91,3 +91,67 @@ def test_get_current_user_without_token_returns_401(client: TestClient) -> None:
     response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
+
+
+def test_refresh_session_returns_new_valid_tokens(
+    client: TestClient,
+    user_payload: dict[str, str],
+) -> None:
+    client.post("/api/v1/auth/register", json=user_payload)
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": user_payload["email"],
+            "password": user_payload["password"],
+        },
+    )
+
+    refresh_response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login_response.json()["refresh_token"]},
+    )
+
+    assert refresh_response.status_code == 200
+    tokens = refresh_response.json()
+    assert tokens["access_token"]
+    assert tokens["refresh_token"]
+    assert tokens["token_type"] == "bearer"
+
+    me_response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert me_response.status_code == 200
+    assert me_response.json()["user"]["email"] == user_payload["email"]
+
+
+def test_refresh_session_rejects_access_token(
+    client: TestClient,
+    user_payload: dict[str, str],
+) -> None:
+    client.post("/api/v1/auth/register", json=user_payload)
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": user_payload["email"],
+            "password": user_payload["password"],
+        },
+    )
+
+    response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": login_response.json()["access_token"]},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Invalid or expired refresh token"
+
+
+def test_refresh_session_rejects_invalid_token(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": "not-a-valid-jwt"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Invalid or expired refresh token"

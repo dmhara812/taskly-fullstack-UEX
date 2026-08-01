@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
+from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,12 +10,17 @@ from app.core.dependencies import get_current_user
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    get_token_subject,
     verify_password,
 )
 from app.models.user import User
-from app.schemas.auth import CurrentUserResponse, TokenResponse
+from app.schemas.auth import (
+    CurrentUserResponse,
+    RefreshTokenRequest,
+    TokenResponse,
+)
 from app.schemas.user import UserCreate, UserResponse
-from app.services.exceptions import ForbiddenError
+from app.services.exceptions import ForbiddenError, NotFoundError
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -67,6 +73,40 @@ def login(
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
+    )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_session(
+    payload: RefreshTokenRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> TokenResponse:
+    """Renova a sessão somente a partir de um refresh token válido.
+
+    O tipo do token é conferido para impedir que um access token seja usado
+    para prolongar a própria sessão. A existência e o estado ativo do usuário
+    também são reavaliados antes de emitir novos tokens.
+    """
+    try:
+        user_id = get_token_subject(
+            payload.refresh_token,
+            expected_type="refresh",
+        )
+    except JWTError as exc:
+        raise ForbiddenError("Invalid or expired refresh token") from exc
+
+    user_service = UserService(db)
+    try:
+        user = user_service.get_user_by_id(user_id)
+    except NotFoundError as exc:
+        raise ForbiddenError("Invalid or expired refresh token") from exc
+
+    if not user.is_active:
+        raise ForbiddenError("Inactive user")
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
     )
 
 

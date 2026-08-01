@@ -7,7 +7,7 @@ Repositório do case técnico Taskly, organizado como monorepo para manter backe
 ```text
 taskly-fullstack-UEX/
 ├── backend/          # FastAPI, SQLAlchemy, Alembic e pytest
-├── frontend/         # React/Vite será inicializado na Etapa 05
+├── frontend/         # React, Vite, TypeScript e autenticação
 ├── docs/             # etapas, decisões, estado atual e uso de IA
 ├── .github/          # CI do repositório
 ├── docker-compose.yml
@@ -40,16 +40,19 @@ python -m pytest
 
 ### Raiz do frontend
 
-A partir da inicialização do React/Vite, use para npm, TypeScript e Vitest:
+Use para npm, TypeScript, ESLint e Vitest:
 
 ```powershell
 cd frontend
+npm install
 npm run dev
 npm run lint
 npx tsc --noEmit
-npx vitest run
+npm run test
 ```
 
 ## Estado funcional
 
-O backend já possui autenticação, projetos, tarefas, ownership, prazos em UTC e tags relacionais por usuário. Anexos e frontend ainda serão implementados nas próximas etapas.
+O backend possui autenticação, refresh token, projetos, tarefas, ownership, prazos em UTC, tags relacionais e anexos.
+
+O frontend possui cadastro, login, sessão persistente, renovação automática de token, rotas protegidas e logout. Os fluxos de projetos e tarefas serão implementados nas próximas etapas.
