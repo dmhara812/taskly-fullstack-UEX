@@ -2,10 +2,13 @@ import { apiRequest } from '../../api/client'
 import type {
   PaginatedTasks,
   Task,
+  TaskBoardFilters,
   TaskCreatePayload,
   TaskFilters,
   TaskUpdatePayload,
 } from './types'
+
+const KANBAN_PAGE_SIZE = 100
 
 export function listTasks(filters: TaskFilters): Promise<PaginatedTasks> {
   const params = new URLSearchParams({
@@ -27,6 +30,32 @@ export function listTasks(filters: TaskFilters): Promise<PaginatedTasks> {
   }
 
   return apiRequest<PaginatedTasks>(`/tasks?${params.toString()}`)
+}
+
+export async function listAllProjectTasks(
+  filters: TaskBoardFilters,
+): Promise<Task[]> {
+  const tasks: Task[] = []
+  let currentPage = 1
+  let totalPages = 1
+
+  // O endpoint continua paginado. O kanban percorre todas as páginas para não
+  // ocultar tarefas quando um projeto ultrapassar o limite máximo da API.
+  do {
+    const response = await listTasks({
+      projectId: filters.projectId,
+      page: currentPage,
+      size: KANBAN_PAGE_SIZE,
+      priority: filters.priority,
+      search: filters.search,
+    })
+
+    tasks.push(...response.items)
+    totalPages = response.pages
+    currentPage += 1
+  } while (currentPage <= totalPages)
+
+  return tasks
 }
 
 export function createTask(payload: TaskCreatePayload): Promise<Task> {

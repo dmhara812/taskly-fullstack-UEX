@@ -59,9 +59,11 @@ function requestDetails(input: RequestInfo | URL, init?: RequestInit) {
 function installApiMock({
   project = activeProject,
   initialTasks = [taskFixture()],
+  kanbanPages,
 }: {
   project?: Project
   initialTasks?: Task[]
+  kanbanPages?: Task[][]
 } = {}) {
   let tasks = [...initialTasks]
 
@@ -73,11 +75,31 @@ function installApiMock({
     }
 
     if (url.includes('/tasks?') && method === 'GET') {
+      const parsedUrl = new URL(url)
+      const requestedPage = Number(parsedUrl.searchParams.get('page') ?? '1')
+      const requestedSize = Number(parsedUrl.searchParams.get('size') ?? '8')
+
+      if (requestedSize === 100 && kanbanPages) {
+        const pageItems = kanbanPages[requestedPage - 1] ?? []
+        const total = kanbanPages.reduce(
+          (sum, currentPage) => sum + currentPage.length,
+          0,
+        )
+
+        return jsonResponse({
+          items: pageItems,
+          total,
+          page: requestedPage,
+          size: requestedSize,
+          pages: kanbanPages.length,
+        })
+      }
+
       return jsonResponse({
         items: tasks,
         total: tasks.length,
-        page: 1,
-        size: 8,
+        page: requestedPage,
+        size: requestedSize,
         pages: tasks.length > 0 ? 1 : 0,
       })
     }
@@ -201,6 +223,57 @@ describe('ProjectWorkspacePage', () => {
 
     const patchCall = fetchSpy.mock.calls.find(([, init]) => init?.method === 'PATCH')
     expect(patchCall?.[1]?.body).toBe(JSON.stringify({ status: 'done' }))
+  })
+
+  it('loads every API page when the kanban view is opened', async () => {
+    const secondTask = taskFixture({
+      id: 'task-2',
+      title: 'Publicar ambiente',
+      short_description: 'Disponibilizar a aplicação para validação.',
+      status: 'done',
+    })
+    const fetchSpy = installApiMock({
+      kanbanPages: [[taskFixture()], [secondTask]],
+    })
+    renderWorkspace()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Kanban' }),
+    )
+
+    expect(await screen.findByText('Publicar ambiente')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Não iniciada' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Concluída' })).toBeVisible()
+
+    await waitFor(() => {
+      expect(
+        fetchSpy.mock.calls.some(([input]) => {
+          const url = input instanceof Request ? input.url : String(input)
+          return url.includes('page=2') && url.includes('size=100')
+        }),
+      ).toBe(true)
+    })
+  })
+
+  it('persists a status change made from the kanban card', async () => {
+    const fetchSpy = installApiMock({
+      kanbanPages: [[taskFixture()]],
+    })
+    renderWorkspace()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Kanban' }),
+    )
+
+    const moveSelect = await screen.findByRole('combobox', {
+      name: 'Mover Revisar autenticação para outra coluna',
+    })
+    fireEvent.change(moveSelect, { target: { value: 'in_progress' } })
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(patchCall?.[1]?.body).toBe(JSON.stringify({ status: 'in_progress' }))
+    })
   })
 
   it('keeps an archived project in read-only mode', async () => {

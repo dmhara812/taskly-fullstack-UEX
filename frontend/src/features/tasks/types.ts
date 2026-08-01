@@ -41,6 +41,12 @@ export interface PaginatedTasks {
   pages: number
 }
 
+export interface TaskBoardFilters {
+  projectId: string
+  priority?: TaskPriority
+  search?: string
+}
+
 export interface TaskFilters {
   projectId: string
   page: number

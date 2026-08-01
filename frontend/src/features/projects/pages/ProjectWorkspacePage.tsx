@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../../../api/client'
+import { KanbanBoard } from '../../tasks/components/KanbanBoard'
 import { TaskFormDialog } from '../../tasks/components/TaskFormDialog'
 import { TaskListItem } from '../../tasks/components/TaskListItem'
 import {
   useCreateTask,
   useDeleteTask,
+  useKanbanTasks,
+  useMoveTaskStatus,
   useTasks,
   useUpdateTask,
 } from '../../tasks/hooks'
@@ -21,6 +24,7 @@ const PAGE_SIZE = 8
 
 type StatusFilter = TaskStatus | 'all'
 type PriorityFilter = TaskPriority | 'all'
+type ViewMode = 'list' | 'kanban'
 
 interface TaskActionOptions {
   removesItemFromCurrentPage?: boolean
@@ -49,6 +53,7 @@ function getErrorMessage(error: unknown): string {
 
 export function ProjectWorkspacePage() {
   const { projectId = '' } = useParams()
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
@@ -59,21 +64,36 @@ export function ProjectWorkspacePage() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const projectQuery = useProject(projectId)
-  const tasksQuery = useTasks({
-    projectId,
-    page,
-    size: PAGE_SIZE,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-    priority: priorityFilter === 'all' ? undefined : priorityFilter,
-    search: search || undefined,
-  })
+  const tasksQuery = useTasks(
+    {
+      projectId,
+      page,
+      size: PAGE_SIZE,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      priority: priorityFilter === 'all' ? undefined : priorityFilter,
+      search: search || undefined,
+    },
+    viewMode === 'list',
+  )
+  const kanbanQuery = useKanbanTasks(
+    {
+      projectId,
+      priority: priorityFilter === 'all' ? undefined : priorityFilter,
+      search: search || undefined,
+    },
+    viewMode === 'kanban',
+  )
 
   const createMutation = useCreateTask()
   const updateMutation = useUpdateTask()
+  const moveStatusMutation = useMoveTaskStatus()
   const deleteMutation = useDeleteTask()
 
   const isMutating =
-    createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    moveStatusMutation.isPending ||
+    deleteMutation.isPending
 
   const closeDialog = () => {
     if (isMutating) {
@@ -100,8 +120,23 @@ export function ProjectWorkspacePage() {
     setActionError(null)
   }
 
+  const changeView = (nextView: ViewMode) => {
+    setViewMode(nextView)
+    setPage(1)
+    setActionError(null)
+
+    // O kanban sempre apresenta as quatro colunas. O filtro de status pertence
+    // somente à lista e é limpo na troca para evitar um board incompleto.
+    if (nextView === 'kanban') {
+      setStatusFilter('all')
+    }
+  }
+
   const shouldReturnToPreviousPage = (removesItem: boolean) =>
-    removesItem && page > 1 && (tasksQuery.data?.items.length ?? 0) === 1
+    viewMode === 'list' &&
+    removesItem &&
+    page > 1 &&
+    (tasksQuery.data?.items.length ?? 0) === 1
 
   const runTaskAction = async (
     action: () => Promise<unknown>,
@@ -130,8 +165,12 @@ export function ProjectWorkspacePage() {
       if (editingTask) {
         const nextStatus = payload.status ?? editingTask.status
         const leavesCurrentFilter =
-          statusFilter !== 'all' && nextStatus !== statusFilter
-        const returnToPreviousPage = shouldReturnToPreviousPage(leavesCurrentFilter)
+          viewMode === 'list' &&
+          statusFilter !== 'all' &&
+          nextStatus !== statusFilter
+        const returnToPreviousPage = shouldReturnToPreviousPage(
+          leavesCurrentFilter,
+        )
 
         await updateMutation.mutateAsync({
           taskId: editingTask.id,
@@ -152,8 +191,8 @@ export function ProjectWorkspacePage() {
           tags: payload.tags,
         })
 
-        // A tarefa nasce como `todo`. Limpamos filtros para que o item criado
-        // apareça imediatamente, sem depender do estado anterior da listagem.
+        // A tarefa nasce como `todo`. Limpamos filtros para que ela fique
+        // visível tanto na lista quanto na primeira coluna do kanban.
         setStatusFilter('all')
         setPriorityFilter('all')
         setSearchInput('')
@@ -173,7 +212,8 @@ export function ProjectWorkspacePage() {
       return
     }
 
-    const leavesCurrentFilter = statusFilter !== 'all' && status !== statusFilter
+    const leavesCurrentFilter =
+      viewMode === 'list' && statusFilter !== 'all' && status !== statusFilter
 
     void runTaskAction(
       () =>
@@ -183,6 +223,20 @@ export function ProjectWorkspacePage() {
         }),
       { removesItemFromCurrentPage: leavesCurrentFilter },
     )
+  }
+
+  const moveTaskOnKanban = (task: Task, status: TaskStatus) => {
+    if (task.status === status) {
+      return
+    }
+
+    setActionError(null)
+
+    // O hook aplica a mudança no cache antes do PATCH e restaura o snapshot
+    // automaticamente se a persistência falhar.
+    void moveStatusMutation
+      .mutateAsync({ task, status })
+      .catch((error: unknown) => setActionError(getErrorMessage(error)))
   }
 
   const deleteTask = (task: Task) => {
@@ -196,7 +250,7 @@ export function ProjectWorkspacePage() {
 
     void runTaskAction(
       () => deleteMutation.mutateAsync(task.id),
-      { removesItemFromCurrentPage: true },
+      { removesItemFromCurrentPage: viewMode === 'list' },
     )
   }
 
@@ -235,11 +289,20 @@ export function ProjectWorkspacePage() {
 
   const project = projectQuery.data
   const isReadOnly = project.status === 'archived'
-  const tasks = tasksQuery.data?.items ?? []
-  const total = tasksQuery.data?.total ?? 0
-  const pages = tasksQuery.data?.pages ?? 0
+  const tasks =
+    viewMode === 'list' ? tasksQuery.data?.items ?? [] : kanbanQuery.data ?? []
+  const total = viewMode === 'list' ? tasksQuery.data?.total ?? 0 : tasks.length
+  const pages = viewMode === 'list' ? tasksQuery.data?.pages ?? 0 : 0
+  const isTasksPending =
+    viewMode === 'list' ? tasksQuery.isPending : kanbanQuery.isPending
+  const isTasksError =
+    viewMode === 'list' ? tasksQuery.isError : kanbanQuery.isError
+  const tasksError =
+    viewMode === 'list' ? tasksQuery.error : kanbanQuery.error
   const hasFilters =
-    statusFilter !== 'all' || priorityFilter !== 'all' || Boolean(search)
+    (viewMode === 'list' && statusFilter !== 'all') ||
+    priorityFilter !== 'all' ||
+    Boolean(search)
 
   return (
     <main className="project-workspace">
@@ -284,33 +347,48 @@ export function ProjectWorkspacePage() {
             <h2>Tarefas do projeto</h2>
           </div>
           <div className="view-toggle" aria-label="Visualização das tarefas">
-            <button className="is-active" type="button" aria-pressed="true">
+            <button
+              className={viewMode === 'list' ? 'is-active' : undefined}
+              type="button"
+              aria-pressed={viewMode === 'list'}
+              onClick={() => changeView('list')}
+            >
               Lista
             </button>
-            <button type="button" disabled title="Disponível na Etapa 08">
+            <button
+              className={viewMode === 'kanban' ? 'is-active' : undefined}
+              type="button"
+              aria-pressed={viewMode === 'kanban'}
+              onClick={() => changeView('kanban')}
+            >
               Kanban
             </button>
           </div>
         </div>
 
-        <div className="task-filters" aria-label="Filtros de tarefas">
-          <div className="field-group compact-field">
-            <label htmlFor="task-status-filter">Status</label>
-            <select
-              id="task-status-filter"
-              value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value as StatusFilter)
-                setPage(1)
-              }}
-            >
-              {Object.entries(statusLabels).map(([status, label]) => (
-                <option key={status} value={status}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div
+          className={`task-filters${viewMode === 'kanban' ? ' task-filters-kanban' : ''}`}
+          aria-label="Filtros de tarefas"
+        >
+          {viewMode === 'list' ? (
+            <div className="field-group compact-field">
+              <label htmlFor="task-status-filter">Status</label>
+              <select
+                id="task-status-filter"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value as StatusFilter)
+                  setPage(1)
+                }}
+              >
+                {Object.entries(statusLabels).map(([status, label]) => (
+                  <option key={status} value={status}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div className="field-group compact-field">
             <label htmlFor="task-priority-filter">Prioridade</label>
@@ -347,7 +425,11 @@ export function ProjectWorkspacePage() {
           </form>
 
           {hasFilters ? (
-            <button className="text-button task-clear-filters" type="button" onClick={clearFilters}>
+            <button
+              className="text-button task-clear-filters"
+              type="button"
+              onClick={clearFilters}
+            >
               Limpar filtros
             </button>
           ) : null}
@@ -362,21 +444,29 @@ export function ProjectWorkspacePage() {
           </div>
         ) : null}
 
-        {tasksQuery.isPending ? (
+        {isTasksPending ? (
           <section className="tasks-state" role="status">
             <div className="loading-orb" aria-hidden="true" />
             <h3>Carregando tarefas</h3>
-            <p>Organizando o trabalho deste projeto.</p>
+            <p>
+              {viewMode === 'kanban'
+                ? 'Montando todas as colunas do projeto.'
+                : 'Organizando o trabalho deste projeto.'}
+            </p>
           </section>
-        ) : tasksQuery.isError ? (
+        ) : isTasksError ? (
           <section className="tasks-state tasks-state-error" role="alert">
             <span aria-hidden="true">!</span>
             <h3>Não foi possível carregar as tarefas</h3>
-            <p>{getErrorMessage(tasksQuery.error)}</p>
+            <p>{getErrorMessage(tasksError)}</p>
             <button
               className="secondary-button"
               type="button"
-              onClick={() => void tasksQuery.refetch()}
+              onClick={() =>
+                void (viewMode === 'list'
+                  ? tasksQuery.refetch()
+                  : kanbanQuery.refetch())
+              }
             >
               Tentar novamente
             </button>
@@ -384,7 +474,9 @@ export function ProjectWorkspacePage() {
         ) : tasks.length === 0 ? (
           <section className="tasks-state tasks-empty">
             <span aria-hidden="true">✓</span>
-            <h3>{hasFilters ? 'Nenhuma tarefa encontrada' : 'Nenhuma tarefa criada'}</h3>
+            <h3>
+              {hasFilters ? 'Nenhuma tarefa encontrada' : 'Nenhuma tarefa criada'}
+            </h3>
             <p>
               {hasFilters
                 ? 'Revise os filtros para encontrar outras tarefas.'
@@ -393,7 +485,11 @@ export function ProjectWorkspacePage() {
                   : 'Crie a primeira tarefa para começar a acompanhar a execução.'}
             </p>
             {!hasFilters && !isReadOnly ? (
-              <button className="primary-button" type="button" onClick={() => setIsCreating(true)}>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => setIsCreating(true)}
+              >
                 Criar tarefa
               </button>
             ) : null}
@@ -403,48 +499,69 @@ export function ProjectWorkspacePage() {
             <div className="tasks-summary">
               <strong>{total}</strong> {total === 1 ? 'tarefa' : 'tarefas'}
               {search ? <span> para “{search}”</span> : null}
+              {viewMode === 'kanban' ? (
+                <span> · quadro completo do projeto</span>
+              ) : null}
             </div>
 
-            <section className="task-list" aria-label="Lista de tarefas">
-              {tasks.map((task) => (
-                <TaskListItem
-                  key={task.id}
-                  task={task}
-                  isBusy={isMutating}
-                  isReadOnly={isReadOnly}
-                  onEdit={(selectedTask) => {
-                    setActionError(null)
-                    setEditingTask(selectedTask)
-                  }}
-                  onDelete={deleteTask}
-                  onStatusChange={changeTaskStatus}
-                />
-              ))}
-            </section>
+            {viewMode === 'list' ? (
+              <>
+                <section className="task-list" aria-label="Lista de tarefas">
+                  {tasks.map((task) => (
+                    <TaskListItem
+                      key={task.id}
+                      task={task}
+                      isBusy={isMutating}
+                      isReadOnly={isReadOnly}
+                      onEdit={(selectedTask) => {
+                        setActionError(null)
+                        setEditingTask(selectedTask)
+                      }}
+                      onDelete={deleteTask}
+                      onStatusChange={changeTaskStatus}
+                    />
+                  ))}
+                </section>
 
-            {pages > 1 ? (
-              <nav className="pagination" aria-label="Paginação de tarefas">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={page === 1 || tasksQuery.isFetching}
-                  onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
-                >
-                  Anterior
-                </button>
-                <span>
-                  Página {page} de {pages}
-                </span>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={page >= pages || tasksQuery.isFetching}
-                  onClick={() => setPage((currentPage) => currentPage + 1)}
-                >
-                  Próxima
-                </button>
-              </nav>
-            ) : null}
+                {pages > 1 ? (
+                  <nav className="pagination" aria-label="Paginação de tarefas">
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={page === 1 || tasksQuery.isFetching}
+                      onClick={() =>
+                        setPage((currentPage) => Math.max(1, currentPage - 1))
+                      }
+                    >
+                      Anterior
+                    </button>
+                    <span>
+                      Página {page} de {pages}
+                    </span>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={page >= pages || tasksQuery.isFetching}
+                      onClick={() => setPage((currentPage) => currentPage + 1)}
+                    >
+                      Próxima
+                    </button>
+                  </nav>
+                ) : null}
+              </>
+            ) : (
+              <KanbanBoard
+                tasks={tasks}
+                isBusy={isMutating}
+                isReadOnly={isReadOnly}
+                onEdit={(selectedTask) => {
+                  setActionError(null)
+                  setEditingTask(selectedTask)
+                }}
+                onDelete={deleteTask}
+                onStatusChange={moveTaskOnKanban}
+              />
+            )}
           </>
         )}
       </section>

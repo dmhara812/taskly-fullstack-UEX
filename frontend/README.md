@@ -5,7 +5,8 @@ Frontend do Taskly desenvolvido com React, Vite e TypeScript.
 ## Stack
 
 - React e React Router;
-- TanStack Query para estado remoto;
+- TanStack Query para estado remoto e rollback de mutations;
+- dnd-kit para drag-and-drop do kanban;
 - React Hook Form e Zod para formulários;
 - Vitest e Testing Library para testes;
 - ESLint e TypeScript em modo estrito.
@@ -58,7 +59,10 @@ npm run build
 - criação, edição, exclusão e atualização de status de tarefas;
 - filtros por status, prioridade e busca;
 - prazo com conversão entre horário local e UTC;
-- tags básicas no formulário e na listagem.
+- tags básicas no formulário e na listagem;
+- toggle entre lista e kanban;
+- carregamento completo das páginas no quadro;
+- drag-and-drop de status com atualização otimista e rollback.
 
 O armazenamento em `localStorage` é um trade-off consciente do case. Para um
 produto real, a evolução recomendada é adotar cookies HttpOnly e proteção CSRF.
