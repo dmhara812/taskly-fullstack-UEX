@@ -16,6 +16,9 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: "30"
       REFRESH_TOKEN_EXPIRE_DAYS: "7"
       CORS_ORIGINS: "http://localhost:5173,http://localhost:8000"
+      ATTACHMENT_STORAGE_DIR: "storage/attachments"
+      ATTACHMENT_MAX_SIZE_BYTES: "5242880"
+      ATTACHMENT_ALLOWED_CONTENT_TYPES: "image/jpeg,image/png,image/webp,application/pdf"
     ports:
       - "8000:8000"
     depends_on:
@@ -23,6 +26,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - attachment_data:/app/storage/attachments
     command: []
     restart: unless-stopped
 
@@ -46,3 +50,4 @@ services:
 
 volumes:
   postgres_data:
+  attachment_data:

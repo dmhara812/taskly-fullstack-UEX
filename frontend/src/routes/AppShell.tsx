@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
 
 export function AppShell() {
@@ -7,12 +7,12 @@ export function AppShell() {
   return (
     <div className="application-shell">
       <header className="app-header">
-        <a className="brand brand-dark" href="/app">
+        <Link className="brand brand-dark" to="/app">
           <span className="brand-mark" aria-hidden="true">
             T
           </span>
           <span>Taskly</span>
-        </a>
+        </Link>
         <div className="user-actions">
           <div className="user-summary">
             <strong>{user?.name}</strong>

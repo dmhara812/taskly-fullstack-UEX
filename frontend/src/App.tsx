@@ -1,8 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from './features/auth/pages/LoginPage'
 import { RegisterPage } from './features/auth/pages/RegisterPage'
+import { ProjectsPage } from './features/projects/pages/ProjectsPage'
+import { ProjectWorkspacePage } from './features/projects/pages/ProjectWorkspacePage'
 import { AppShell } from './routes/AppShell'
-import { DashboardPage } from './routes/DashboardPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { PublicOnlyRoute } from './routes/PublicOnlyRoute'
 
@@ -16,7 +17,8 @@ export function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>
-          <Route index element={<DashboardPage />} />
+          <Route index element={<ProjectsPage />} />
+          <Route path="projects/:projectId" element={<ProjectWorkspacePage />} />
         </Route>
       </Route>
 
