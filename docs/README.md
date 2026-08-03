@@ -29,6 +29,4 @@ docs/
 
 ## Curadoria
 
-Notas operacionais extensas e documentos incrementais foram preservados fora do repositório público. A remoção evita duplicação de código e concentra a avaliação nas decisões, no produto e nas evidências reais.
-
 A pasta `prompts/` contém apenas três consultas representativas. Consultas intermediárias não foram mantidas publicamente porque não acrescentavam valor proporcional e poderiam fazer o repositório parecer um roteiro de implementação.
