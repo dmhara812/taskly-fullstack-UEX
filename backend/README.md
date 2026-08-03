@@ -1,30 +1,46 @@
-# KanbanCore API
+# Taskly API
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red)
-![Docker](https://img.shields.io/badge/Docker-ready-blue)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED)
 ![Tests](https://img.shields.io/badge/tests-pytest-brightgreen)
 
-[CI](https://github.com/dmhara812/kanbancore-api/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/dmhara812/taskly-fullstack-UEX/actions/workflows/ci.yml/badge.svg)
 
+Backend do **Taskly**, uma aplicação de gestão de projetos e tarefas desenvolvida como case técnico full stack.
 
-## Sobre o projeto
+A API foi construída com FastAPI, SQLAlchemy, PostgreSQL e Alembic, com autenticação JWT, regras de ownership, testes automatizados e armazenamento autenticado de anexos.
 
-**KanbanCore API** é uma API REST profissional para gerenciamento de projetos e tarefas, construída com foco em arquitetura limpa, boas práticas de backend e preparação para produção.
+> Para executar o projeto completo, incluindo frontend, backend e PostgreSQL, consulte também o [`README.md`](../README.md) da raiz do repositório.
 
-O projeto foi desenvolvido como base reutilizável e peça de portfólio, demonstrando:
+---
 
-- autenticação com JWT;
-- CRUD real com entidades relacionadas;
-- arquitetura em camadas;
-- validação com Pydantic;
-- persistência com PostgreSQL e SQLAlchemy;
+## Funcionalidades
+
+- cadastro de usuários;
+- login por e-mail e senha;
+- access token e refresh token;
+- renovação de sessão;
+- consulta do usuário autenticado;
+- CRUD de projetos;
+- projetos ativos e arquivados;
+- CRUD de tarefas;
+- status, prioridade, descrição e prazo;
+- paginação, filtros e busca;
+- tags associadas às tarefas;
+- criação e reutilização de tags;
+- upload autenticado de imagens e PDFs;
+- download autenticado de anexos;
+- exclusão de anexos;
+- validação de ownership;
+- bloqueio de alterações em projetos arquivados;
+- tratamento centralizado de erros de negócio;
 - migrations com Alembic;
 - testes automatizados com pytest;
-- CI com GitHub Actions;
-- ambiente Docker com API e banco de dados.
+- lint e formatação com Ruff;
+- integração contínua com GitHub Actions.
 
 ---
 
@@ -32,94 +48,82 @@ O projeto foi desenvolvido como base reutilizável e peça de portfólio, demons
 
 - Python 3.12+
 - FastAPI
-- PostgreSQL
-- SQLAlchemy 2.0
+- Uvicorn
+- PostgreSQL 16
+- SQLAlchemy 2
 - Alembic
-- Pydantic v2
-- JWT com python-jose
-- Passlib + bcrypt
+- Pydantic 2
+- Pydantic Settings
+- JWT
+- Psycopg
+- pytest
+- pytest-cov
+- Ruff
 - Docker
 - Docker Compose
-- pytest
-- Ruff
 - GitHub Actions
-
----
-
-## Funcionalidades
-
-- Registro de usuários
-- Login com JWT
-- Access token
-- Refresh token
-- Rota de usuário autenticado
-- CRUD de projetos
-- CRUD de tarefas
-- Paginação em listagens
-- Filtros em listagens
-- Proteção de rotas com autenticação
-- Validação de ownership
-- Bloqueio de criação de tarefas em projetos arquivados
-- Tratamento global de erros de negócio
-- Testes automatizados do fluxo principal
-- CI com lint e testes
 
 ---
 
 ## Arquitetura
 
-O projeto segue uma arquitetura em camadas:
-
-```text
-app/
-  api/          -> rotas/controllers
-  core/         -> configurações, segurança e dependências
-  models/       -> modelos SQLAlchemy
-  schemas/      -> schemas Pydantic
-  repositories/ -> acesso ao banco de dados
-  services/     -> regras de negócio
-  tests/        -> testes automatizados
-
-alembic/        -> migrations do banco de dados
-```
-
-Fluxo principal da aplicação:
+O backend utiliza separação em camadas:
 
 ```text
 HTTP request
-   ↓
+    ↓
 API route
-   ↓
+    ↓
 Service
-   ↓
+    ↓
 Repository
-   ↓
+    ↓
 Database
 ```
 
----
-
-## Modelo de dados
-
-Relacionamento principal:
+Responsabilidades principais:
 
 ```text
-User 1 ──── N Project 1 ──── N Task
+app/
+├── api/             # rotas HTTP e composição dos routers
+├── core/            # configurações, banco, autenticação e dependências
+├── models/          # modelos SQLAlchemy
+├── schemas/         # contratos de entrada e saída com Pydantic
+├── repositories/    # acesso e consultas ao banco
+├── services/        # regras de negócio
+└── tests/           # testes automatizados
+
+alembic/             # configuração e versões das migrations
+storage/             # armazenamento local de anexos
+```
+
+As rotas recebem e validam as requisições. As regras de negócio ficam nos serviços, enquanto os repositórios concentram o acesso ao banco.
+
+---
+
+## Modelo de domínio
+
+Relacionamentos principais:
+
+```text
+User 1 ─── N Project 1 ─── N Task
+                         ├── N Tag
+                         └── N Attachment
 ```
 
 ### User
 
-Representa um usuário autenticado.
+Representa o usuário autenticado.
 
 Campos principais:
 
-- `id`
-- `name`
-- `email`
-- `hashed_password`
-- `is_active`
-- `created_at`
-- `updated_at`
+- `id`;
+- `name`;
+- `email`;
+- `hashed_password`;
+- `is_active`;
+- `created_at`;
+- `updated_at`.
 
 ### Project
 
@@ -127,15 +131,15 @@ Representa um projeto pertencente a um usuário.
 
 Campos principais:
 
-- `id`
-- `owner_id`
-- `name`
-- `description`
-- `status`
-- `created_at`
-- `updated_at`
+- `id`;
+- `owner_id`;
+- `name`;
+- `description`;
+- `status`;
+- `created_at`;
+- `updated_at`.
 
-Status possíveis:
+Status:
 
 ```text
 active
@@ -148,17 +152,17 @@ Representa uma tarefa pertencente a um projeto.
 
 Campos principais:
 
-- `id`
-- `project_id`
-- `title`
-- `description`
-- `status`
-- `priority`
-- `due_date`
-- `created_at`
-- `updated_at`
+- `id`;
+- `project_id`;
+- `title`;
+- `description`;
+- `status`;
+- `priority`;
+- `due_date`;
+- `created_at`;
+- `updated_at`.
 
-Status possíveis:
+Status:
 
 ```text
 todo
@@ -166,7 +170,7 @@ in_progress
 done
 ```
 
-Prioridades possíveis:
+Prioridades:
 
 ```text
 low
@@ -174,86 +178,142 @@ medium
 high
 ```
 
+### Tag
+
+Representa uma classificação reutilizável associada às tarefas do usuário.
+
+As validações impedem o uso de tags pertencentes a outros usuários.
+
+### Attachment
+
+Representa o metadado de um arquivo associado a uma tarefa.
+
+O conteúdo do arquivo é armazenado fora do banco, no diretório configurado por `ATTACHMENT_STORAGE_DIR`. O acesso ao conteúdo exige autenticação e validação de ownership.
+
 ---
 
 ## Pré-requisitos
 
-Para rodar localmente:
+Para desenvolvimento local:
 
-- Python 3.12+
-- Docker
-- Docker Compose
-- Git
+- Git;
+- Python 3.12 ou superior;
+- Docker Desktop com Docker Compose;
+- PostgreSQL 16 executado pelo Docker ou instalado localmente.
 
-Opcional:
+Verifique no PowerShell:
 
-- VS Code
-- Extensão Python
-- Extensão Ruff
-- Extensão Docker
+```powershell
+git --version
+py --version
+docker --version
+docker compose version
+```
+
+Caso o comando `py` não esteja disponível:
+
+```powershell
+python --version
+```
 
 ---
 
-## Configuração do ambiente
+## Primeira configuração
 
-Clone o repositório:
+Os comandos desta seção partem da **raiz do repositório**.
 
-```bash
-git clone https://github.com/SEU_USUARIO/kanbancore-api.git
-cd kanbancore-api
+### 1. Entrar no backend
+
+```powershell
+cd backend
 ```
 
-Crie o ambiente virtual:
+A partir desse ponto, o terminal estará na **raiz do backend**.
 
-```bash
+### 2. Criar o ambiente virtual
+
+```powershell
+py -m venv .venv
+```
+
+Caso o comando `py` não esteja disponível:
+
+```powershell
 python -m venv .venv
 ```
 
-Ative o ambiente virtual.
-
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
-```
-
-Windows PowerShell:
+Confirme que o script foi criado:
 
 ```powershell
-.venv\Scripts\Activate.ps1
+Test-Path .\.venv\Scripts\Activate.ps1
 ```
 
-Instale as dependências:
+Resultado esperado:
 
-```bash
-pip install -e ".[dev]"
+```text
+True
 ```
 
-Copie o arquivo de ambiente:
-
-```bash
-cp .env.example .env
-```
-
-No Windows PowerShell:
+### 3. Ativar o ambiente virtual
 
 ```powershell
-copy .env.example .env
+.\.venv\Scripts\Activate.ps1
 ```
+
+O terminal deverá ficar semelhante a:
+
+```text
+(.venv) PS C:\...\taskly-fullstack-UEX\backend>
+```
+
+#### Caso o PowerShell bloqueie o script
+
+Libere a execução somente para a sessão atual:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+A alteração é descartada quando o PowerShell é fechado.
+
+### 4. Instalar as dependências
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+### 5. Criar o arquivo de ambiente
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Abra para revisão:
+
+```powershell
+notepad .env
+```
+
+Troque `JWT_SECRET_KEY` por uma chave local segura.
 
 ---
 
 ## Variáveis de ambiente
 
-Exemplo de `.env` para rodar localmente:
+O arquivo `backend/.env.example` contém:
 
 ```env
-APP_NAME="KanbanCore API"
+APP_NAME="Taskly API"
 APP_ENV="local"
 APP_DEBUG=true
 APP_VERSION="0.1.0"
 
+# Use esta URL quando rodar a API localmente pelo VS Code/terminal.
 DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5433/projects_api"
+
+# Banco separado para testes locais.
 TEST_DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5433/projects_api_test"
 
 JWT_SECRET_KEY="change-this-secret-key"
@@ -261,335 +321,397 @@ JWT_ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
-CORS_ORIGINS="http://localhost:3000,http://localhost:8000"
+CORS_ORIGINS="http://localhost:5173,http://localhost:8000"
+
+# Anexos são armazenados fora do banco; caminhos relativos partem de backend/.
+ATTACHMENT_STORAGE_DIR="storage/attachments"
+ATTACHMENT_MAX_SIZE_BYTES=5242880
+ATTACHMENT_ALLOWED_CONTENT_TYPES="image/jpeg,image/png,image/webp,application/pdf"
 ```
 
-### Observação sobre a porta do PostgreSQL
+### Variáveis principais
 
-Este projeto usa a porta local `5433` para o PostgreSQL porque a porta `5432` pode estar ocupada na máquina local.
+| Variável | Finalidade |
+|---|---|
+| `DATABASE_URL` | conexão do backend local com o PostgreSQL |
+| `TEST_DATABASE_URL` | conexão utilizada pelos testes |
+| `JWT_SECRET_KEY` | assinatura dos tokens JWT |
+| `JWT_ALGORITHM` | algoritmo de assinatura |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | validade do access token |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | validade do refresh token |
+| `CORS_ORIGINS` | origens autorizadas a chamar a API |
+| `ATTACHMENT_STORAGE_DIR` | diretório de armazenamento dos anexos |
+| `ATTACHMENT_MAX_SIZE_BYTES` | tamanho máximo de cada arquivo |
+| `ATTACHMENT_ALLOWED_CONTENT_TYPES` | tipos MIME aceitos |
 
-No Docker Compose:
+Com o valor padrão:
+
+```env
+ATTACHMENT_MAX_SIZE_BYTES=5242880
+```
+
+o limite é de 5 MiB por arquivo.
+
+Tipos aceitos:
 
 ```text
-localhost:5433 -> container db:5432
+image/jpeg
+image/png
+image/webp
+application/pdf
 ```
 
-Fora do Docker, a API usa:
+O caminho relativo:
+
+```env
+ATTACHMENT_STORAGE_DIR="storage/attachments"
+```
+
+é resolvido a partir da pasta `backend/`.
+
+---
+
+## PostgreSQL e portas
+
+O PostgreSQL do projeto utiliza:
+
+```text
+localhost:5433 → container db:5432
+```
+
+Quando o backend é executado diretamente no Windows, a URL usa:
 
 ```text
 localhost:5433
 ```
 
-Dentro do Docker, a API usa:
+Quando a API é executada dentro do Docker Compose, a configuração do serviço deve usar:
 
 ```text
 db:5432
 ```
 
+Essa configuração interna é fornecida pelo Docker Compose e não deve substituir a URL local do arquivo `backend/.env`.
+
 ---
 
-## Rodando com Docker
+## Executar localmente com PostgreSQL no Docker
 
-Suba API e banco:
+### 1. Iniciar o banco
 
-```bash
-docker compose up --build
+Na **raiz do repositório**:
+
+```powershell
+docker compose up -d db
+docker compose ps
 ```
 
-Ou em segundo plano:
+### 2. Ativar o backend
 
-```bash
-docker compose up --build -d
+Em outro PowerShell:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
 ```
 
-Acesse:
+### 3. Aplicar as migrations
 
-- API: http://localhost:8000
-- Swagger: http://localhost:8000/docs
-- Health check: http://localhost:8000/api/v1/health
-
-Parar containers:
-
-```bash
-docker compose down
+```powershell
+python -m alembic upgrade head
 ```
 
-Ver logs:
+### 4. Iniciar a API
 
-```bash
-docker compose logs -f
+```powershell
+python -m uvicorn app.main:app --reload
 ```
 
-Ver logs apenas da API:
+Acessos:
 
-```bash
+- API: `http://localhost:8000`;
+- Swagger: `http://localhost:8000/docs`;
+- health check: `http://localhost:8000/api/v1/health`.
+
+Para interromper a API:
+
+```text
+Ctrl + C
+```
+
+---
+
+## Execuções posteriores
+
+Depois que `.venv` e `.env` já existirem:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload
+```
+
+Não é necessário recriar a `.venv` a cada execução.
+
+---
+
+## Executar pelo Docker Compose
+
+A execução fullstack é documentada no README da raiz.
+
+Na **raiz do repositório**:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d --build
+docker compose ps
+```
+
+A API executa as migrations antes de iniciar.
+
+Logs da API:
+
+```powershell
 docker compose logs -f api
 ```
 
----
+Parar os serviços:
 
-## Rodando localmente sem Docker para a API
-
-Suba apenas o banco:
-
-```bash
-docker compose up -d db
+```powershell
+docker compose down
 ```
 
-Rode migrations:
+Os volumes preservam o banco e os anexos entre reinícios.
 
-```bash
-alembic upgrade head
-```
+Para remover também os dados:
 
-Inicie a API:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Acesse:
-
-```text
-http://localhost:8000/docs
+```powershell
+docker compose down -v
 ```
 
 ---
 
 ## Migrations com Alembic
 
-Criar uma nova migration:
+Execute os comandos na raiz `backend/`, com a `.venv` ativa.
 
-```bash
-alembic revision --autogenerate -m "migration message"
+Aplicar todas as migrations:
+
+```powershell
+python -m alembic upgrade head
 ```
 
-Aplicar migrations:
+Consultar o histórico:
 
-```bash
-alembic upgrade head
+```powershell
+python -m alembic history
 ```
 
-Ver migration atual:
+Consultar as heads:
 
-```bash
-alembic current
+```powershell
+python -m alembic heads
+```
+
+Consultar a versão atual:
+
+```powershell
+python -m alembic current
+```
+
+Criar uma migration:
+
+```powershell
+python -m alembic revision --autogenerate -m "descricao da alteracao"
 ```
 
 Reverter uma migration:
 
-```bash
-alembic downgrade -1
+```powershell
+python -m alembic downgrade -1
 ```
+
+Sempre revise migrations geradas automaticamente antes de aplicá-las.
 
 ---
 
 ## Testes
 
-Crie o banco de teste:
+Os testes utilizam o banco definido por:
 
-```bash
-docker exec -it projects-api-db createdb -U postgres projects_api_test
+```env
+TEST_DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5433/projects_api_test"
 ```
 
-Rode os testes:
+### Criar o banco de testes
 
-```bash
-pytest
+Com o serviço `db` ativo, execute na raiz do repositório:
+
+```powershell
+docker compose exec db createdb -U postgres projects_api_test
+```
+
+Caso o banco já exista, o PostgreSQL informará que ele não pode ser criado novamente. Isso não impede a execução dos testes.
+
+### Executar os testes
+
+Na raiz `backend/`, com a `.venv` ativa:
+
+```powershell
+python -m pytest
+```
+
+Com detalhes adicionais:
+
+```powershell
+python -m pytest -vv
 ```
 
 Com cobertura:
 
-```bash
-pytest --cov=app
+```powershell
+python -m pytest --cov=app --cov-report=term-missing
+```
+
+Executar apenas um arquivo:
+
+```powershell
+python -m pytest app/tests/test_auth.py -vv
+```
+
+Executar apenas um teste:
+
+```powershell
+python -m pytest app/tests/test_auth.py::nome_do_teste -vv
 ```
 
 ---
 
-## Lint e formatação
+## Ruff
 
-Rodar lint:
+Execute na raiz `backend/`, com a `.venv` ativa.
 
-```bash
-ruff check app
+Verificar o código:
+
+```powershell
+python -m ruff check .
 ```
 
-Corrigir problemas automaticamente quando possível:
+Corrigir automaticamente o que for seguro:
 
-```bash
-ruff check app --fix
+```powershell
+python -m ruff check . --fix
 ```
 
-Formatar código:
+Formatar:
 
-```bash
-ruff format app
+```powershell
+python -m ruff format .
 ```
 
-Checar formatação:
+Verificar a formatação sem alterar arquivos:
 
-```bash
-ruff format app --check
+```powershell
+python -m ruff format . --check
 ```
 
 ---
 
-## CI com GitHub Actions
+## Validação completa do backend
 
-O projeto possui workflow em:
-
-```text
-.github/workflows/ci.yml
+```powershell
+python -m ruff check .
+python -m ruff format . --check
+python -m pytest
 ```
 
-O CI executa:
+A validação completa do repositório também pode ser executada pela raiz:
 
-- instalação das dependências;
-- PostgreSQL como serviço;
-- Ruff lint;
-- Ruff format check;
-- pytest.
-
-Workflow:
-
-```text
-KanbanCore API CI
+```powershell
+.\scripts\validate.ps1
 ```
 
 ---
 
 ## Endpoints principais
 
-Base URL local:
+Base URL:
 
 ```text
 http://localhost:8000/api/v1
+```
+
+A documentação completa e atualizada dos contratos está disponível no Swagger:
+
+```text
+http://localhost:8000/docs
 ```
 
 ### Health
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| GET | `/health` | Verifica se a API está online |
+| `GET` | `/health` | verifica se a API está online |
 
-### Auth
-
-| Método | Endpoint | Descrição |
-|---|---|---|
-| POST | `/auth/register` | Registra um novo usuário |
-| POST | `/auth/login` | Autentica usuário e retorna tokens |
-| POST | `/auth/refresh` | Renova access e refresh tokens |
-| GET | `/auth/me` | Retorna usuário autenticado |
-
-### Projects
+### Autenticação
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| POST | `/projects` | Cria projeto |
-| GET | `/projects` | Lista projetos com paginação e filtros |
-| GET | `/projects/{project_id}` | Busca projeto por ID |
-| PATCH | `/projects/{project_id}` | Atualiza projeto |
-| PATCH | `/projects/{project_id}/archive` | Arquiva projeto |
-| DELETE | `/projects/{project_id}` | Remove projeto |
-
-### Tasks
-
-| Método | Endpoint | Descrição |
-|---|---|---|
-| POST | `/tasks` | Cria tarefa |
-| GET | `/tasks` | Lista tarefas com paginação e filtros |
-| GET | `/tasks/{task_id}` | Busca tarefa por ID |
-| PATCH | `/tasks/{task_id}` | Atualiza tarefa |
-| PATCH | `/tasks/{task_id}/done` | Marca tarefa como concluída |
-| DELETE | `/tasks/{task_id}` | Remove tarefa |
-
----
-
-## Filtros e paginação
+| `POST` | `/auth/register` | registra um usuário |
+| `POST` | `/auth/login` | autentica e retorna os tokens |
+| `POST` | `/auth/refresh` | renova access e refresh tokens |
+| `GET` | `/auth/me` | retorna o usuário autenticado |
 
 ### Projetos
 
-Endpoint:
-
-```text
-GET /api/v1/projects
-```
-
-Query params:
-
-| Parâmetro | Tipo | Descrição |
+| Método | Endpoint | Descrição |
 |---|---|---|
-| `page` | int | Página atual |
-| `size` | int | Itens por página |
-| `status` | string | `active` ou `archived` |
-| `search` | string | Busca parcial pelo nome |
-
-Exemplo:
-
-```text
-GET /api/v1/projects?page=1&size=20&status=active&search=portfolio
-```
+| `POST` | `/projects` | cria um projeto |
+| `GET` | `/projects` | lista projetos |
+| `GET` | `/projects/{project_id}` | consulta um projeto |
+| `PATCH` | `/projects/{project_id}` | atualiza um projeto |
+| `PATCH` | `/projects/{project_id}/archive` | arquiva um projeto |
+| `DELETE` | `/projects/{project_id}` | exclui um projeto |
 
 ### Tarefas
 
-Endpoint:
-
-```text
-GET /api/v1/tasks
-```
-
-Query params:
-
-| Parâmetro | Tipo | Descrição |
+| Método | Endpoint | Descrição |
 |---|---|---|
-| `page` | int | Página atual |
-| `size` | int | Itens por página |
-| `project_id` | UUID | Filtra por projeto |
-| `status` | string | `todo`, `in_progress` ou `done` |
-| `priority` | string | `low`, `medium` ou `high` |
-| `due_before` | date | Filtra tarefas com prazo até a data |
-| `search` | string | Busca parcial pelo título |
+| `POST` | `/tasks` | cria uma tarefa |
+| `GET` | `/tasks` | lista tarefas |
+| `GET` | `/tasks/{task_id}` | consulta uma tarefa |
+| `PATCH` | `/tasks/{task_id}` | atualiza uma tarefa |
+| `DELETE` | `/tasks/{task_id}` | exclui uma tarefa |
 
-Exemplo:
+### Tags
 
-```text
-GET /api/v1/tasks?page=1&size=20&priority=high&search=auth
-```
+As rotas de tags permitem consultar, criar e associar tags conforme os contratos exibidos no Swagger.
+
+### Anexos
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `POST` | `/tasks/{task_id}/attachments` | envia um anexo para uma tarefa |
+| `GET` | `/attachments/{attachment_id}/content` | baixa o conteúdo autenticado |
+| `DELETE` | `/attachments/{attachment_id}` | exclui o anexo |
+
+O identificador do anexo é global. Por isso, download e exclusão usam apenas `attachment_id`.
+
+Upload e exclusão são bloqueados quando o projeto está arquivado. A consulta e o download permanecem disponíveis em modo somente leitura.
 
 ---
 
-## Fluxo completo de uso
+## Autenticação
 
-### 1. Registrar usuário
-
-```http
-POST /api/v1/auth/register
-```
-
-Body:
-
-```json
-{
-  "name": "Ana Silva",
-  "email": "ana.silva@example.com",
-  "password": "StrongPassword123"
-}
-```
-
-### 2. Login
-
-```http
-POST /api/v1/auth/login
-```
-
-Form data:
+O login utiliza dados no formato `application/x-www-form-urlencoded`:
 
 ```text
 username=ana.silva@example.com
 password=StrongPassword123
 ```
 
-Resposta:
+Resposta esperada:
 
 ```json
 {
@@ -599,93 +721,83 @@ Resposta:
 }
 ```
 
-### 3. Renovar a sessão
+Rotas protegidas exigem:
 
 ```http
-POST /api/v1/auth/refresh
-Content-Type: application/json
-```
-
-```json
-{
-  "refresh_token": "jwt-refresh-token"
-}
-```
-
-### 4. Criar projeto
-
-```http
-POST /api/v1/projects
 Authorization: Bearer <access_token>
 ```
 
-Body:
+O access token identifica o usuário pelo claim `sub`.
 
-```json
-{
-  "name": "Portfolio API",
-  "description": "Backend project built with FastAPI and PostgreSQL."
-}
-```
-
-### 5. Criar tarefa
-
-```http
-POST /api/v1/tasks
-Authorization: Bearer <access_token>
-```
-
-Body:
-
-```json
-{
-  "project_id": "project-uuid",
-  "title": "Create authentication endpoints",
-  "description": "Implement register, login and current user endpoints.",
-  "priority": "high",
-  "due_date": "2026-06-15"
-}
-```
-
-### 5. Listar tarefas
-
-```http
-GET /api/v1/tasks?page=1&size=20
-Authorization: Bearer <access_token>
-```
+O endpoint de refresh valida o tipo do token e emite um novo access token e um novo refresh token.
 
 ---
 
-## Decisões técnicas
+## Ownership e projetos arquivados
 
-### Arquitetura em camadas
+A API valida que o recurso solicitado pertence ao usuário autenticado.
 
-O projeto separa responsabilidades em:
+Essa proteção é aplicada a:
 
-- `api`: entrada HTTP;
-- `services`: regras de negócio;
-- `repositories`: acesso ao banco;
-- `models`: estrutura persistida;
-- `schemas`: contratos de entrada e saída;
-- `core`: infraestrutura da aplicação.
+- projetos;
+- tarefas;
+- tags;
+- anexos.
 
-Isso evita controllers grandes e facilita manutenção/testes.
+Projetos arquivados funcionam em modo somente leitura. A API impede alterações, incluindo:
 
-### UUID como chave primária
+- criação e edição de tarefas;
+- movimentação de tarefas;
+- upload de anexos;
+- exclusão de anexos.
 
-As entidades usam UUID para evitar exposição de IDs sequenciais e deixar a API mais adequada para uso público.
+As consultas continuam disponíveis.
 
-### JWT
+---
 
-A autenticação usa access token e refresh token. O access token protege rotas privadas e identifica o usuário pelo claim `sub`.
+## Anexos
 
-### Ownership
+Os metadados são persistidos no PostgreSQL. O conteúdo dos arquivos é armazenado no sistema de arquivos.
 
-Projetos pertencem a usuários. Tarefas pertencem a projetos. As consultas protegidas validam ownership para impedir acesso a dados de outros usuários.
+Configuração padrão:
 
-### Paginação
+```env
+ATTACHMENT_STORAGE_DIR="storage/attachments"
+ATTACHMENT_MAX_SIZE_BYTES=5242880
+ATTACHMENT_ALLOWED_CONTENT_TYPES="image/jpeg,image/png,image/webp,application/pdf"
+```
 
-Listagens retornam:
+O backend:
+
+- valida o tipo MIME;
+- valida o tamanho máximo;
+- gera identificação própria para o arquivo;
+- relaciona o anexo à tarefa;
+- valida ownership no download e na exclusão;
+- remove o arquivo físico ao excluir o anexo;
+- bloqueia alterações em projetos arquivados.
+
+O diretório local de armazenamento não deve ser usado como mecanismo definitivo em um deploy com filesystem efêmero. Uma evolução futura é utilizar armazenamento compatível com S3.
+
+---
+
+## Filtros e paginação
+
+As listagens aceitam paginação e filtros conforme a documentação do Swagger.
+
+Exemplo de projetos:
+
+```http
+GET /api/v1/projects?page=1&size=20&status=active&search=portfolio
+```
+
+Exemplo de tarefas:
+
+```http
+GET /api/v1/tasks?page=1&size=20&project_id=<uuid>&status=todo&priority=high&search=auth
+```
+
+Formato paginado:
 
 ```json
 {
@@ -697,94 +809,173 @@ Listagens retornam:
 }
 ```
 
-### Docker
+---
 
-O Docker Compose sobe API e PostgreSQL. O container da API executa migrations antes de iniciar o servidor.
+## Tratamento de erros
+
+Respostas comuns:
+
+| Status | Significado |
+|---:|---|
+| `400` | regra de negócio inválida |
+| `401` ou `403` | autenticação inválida ou acesso não autorizado |
+| `404` | recurso não encontrado |
+| `409` | conflito, como e-mail já cadastrado |
+| `422` | erro de validação do payload |
+
+Exemplos de regras que podem retornar `400`:
+
+- tentativa de alterar um projeto arquivado;
+- upload em tarefa de projeto arquivado;
+- exclusão de anexo de projeto arquivado.
 
 ---
 
-## Estrutura de pastas
+## Solução de problemas
+
+### `.venv` não encontrada
+
+Erro:
 
 ```text
-.
-├── alembic/
-│   ├── versions/
-│   ├── env.py
-│   └── script.py.mako
-├── app/
-│   ├── api/
-│   │   ├── routes/
-│   │   │   ├── auth.py
-│   │   │   ├── projects.py
-│   │   │   └── tasks.py
-│   │   └── router.py
-│   ├── core/
-│   │   ├── config.py
-│   │   ├── database.py
-│   │   ├── dependencies.py
-│   │   └── security.py
-│   ├── models/
-│   │   ├── base.py
-│   │   ├── project.py
-│   │   ├── task.py
-│   │   └── user.py
-│   ├── repositories/
-│   │   ├── project_repository.py
-│   │   ├── task_repository.py
-│   │   └── user_repository.py
-│   ├── schemas/
-│   │   ├── auth.py
-│   │   ├── common.py
-│   │   ├── project.py
-│   │   ├── task.py
-│   │   └── user.py
-│   ├── services/
-│   │   ├── exceptions.py
-│   │   ├── project_service.py
-│   │   ├── task_service.py
-│   │   └── user_service.py
-│   ├── tests/
-│   │   ├── conftest.py
-│   │   ├── test_auth.py
-│   │   ├── test_full_flow.py
-│   │   ├── test_projects.py
-│   │   └── test_tasks.py
-│   └── main.py
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── .env.example
-├── .gitignore
-├── alembic.ini
-├── docker-compose.yml
-├── docker-entrypoint.sh
-├── Dockerfile
-├── pyproject.toml
-└── README.md
+.\.venv\Scripts\Activate.ps1 não é reconhecido
 ```
 
+Crie o ambiente na raiz `backend/`:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### PowerShell bloqueia o `Activate.ps1`
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+### Alembic, Ruff, Uvicorn ou pytest não reconhecidos
+
+Use a execução pelo módulo Python:
+
+```powershell
+python -m alembic upgrade head
+python -m ruff check .
+python -m uvicorn app.main:app --reload
+python -m pytest
+```
+
+Se os pacotes ainda não estiverem instalados:
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+### PostgreSQL indisponível
+
+Confira o serviço:
+
+```powershell
+docker compose ps
+docker compose logs db
+```
+
+Inicie novamente:
+
+```powershell
+docker compose up -d db
+```
+
+### Porta 8000 ocupada
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue
+```
+
+### Anexo não encontrado após reinício
+
+Na execução local, confirme:
+
+- o valor de `ATTACHMENT_STORAGE_DIR`;
+- a existência de `backend/storage/attachments`;
+- as permissões de escrita;
+- se o volume `attachment_data` está configurado quando o backend roda no Docker.
+
 ---
 
-## Próximos passos
+## CI com GitHub Actions
 
-Possíveis melhorias futuras:
+O workflow está localizado na raiz do repositório:
 
-- logout com blacklist de tokens;
-- roles e permissões;
-- membros em projetos;
-- comentários em tarefas;
-- labels/tags;
-- upload de anexos;
-- soft delete;
-- paginação com cursor;
+```text
+.github/workflows/ci.yml
+```
+
+O CI valida, entre outros pontos:
+
+- instalação das dependências;
+- PostgreSQL como serviço;
+- migrations;
+- Ruff;
+- pytest;
+- validações do frontend.
+
+---
+
+## Decisões técnicas
+
+### Arquitetura em camadas
+
+Separa HTTP, regras de negócio e persistência, facilitando manutenção e testes.
+
+### UUID
+
+Os recursos utilizam UUIDs em vez de identificadores sequenciais.
+
+### JWT com access e refresh token
+
+O access token tem duração curta e protege as rotas privadas. O refresh token permite renovar a sessão sem solicitar novamente a senha.
+
+### Ownership
+
+Toda operação protegida valida o usuário proprietário do recurso.
+
+### PostgreSQL separado para testes
+
+`TEST_DATABASE_URL` evita que os testes alterem o banco local de desenvolvimento.
+
+### Armazenamento de anexos fora do banco
+
+O PostgreSQL mantém metadados e relacionamentos, enquanto os arquivos são persistidos no diretório configurado.
+
+### Projetos arquivados em modo somente leitura
+
+O arquivamento preserva o histórico, mas impede novas alterações.
+
+---
+
+## Melhorias futuras
+
+- cookies HttpOnly para autenticação;
+- revogação ou blacklist de refresh tokens;
 - rate limiting;
 - logs estruturados;
-- observabilidade com Prometheus/Grafana;
-- deploy em cloud;
-- job adicional no CI validando Docker Compose.
+- membros e permissões por projeto;
+- comentários em tarefas;
+- armazenamento de anexos compatível com S3;
+- observabilidade;
+- testes end-to-end;
+- deploy em ambiente demonstrativo.
 
 ---
 
-## Licença
+## Documentação relacionada
 
-Este projeto pode ser usado como base para estudos, portfólio e evolução pessoal.
+- [README principal](../README.md)
+- [Frontend](../frontend/README.md)
+- [Especificação funcional](../docs/SPEC.md)
+- [Arquitetura](../docs/ARCHITECTURE.md)
+- [Decisões técnicas](../docs/DECISIONS.md)
+- [Uso de IA](../docs/AI_USAGE.md)
+- [Validação](../docs/VALIDATION.md)
